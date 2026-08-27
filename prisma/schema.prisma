@@ -1,0 +1,563 @@
+// CampusConnect — marketplace schema
+//
+// PORTABILITY NOTE
+// Local development runs on SQLite so the app boots with zero setup.
+// The schema is deliberately written to be Postgres-portable:
+//   * no native enums   -> string columns + TS union types in src/lib/constants.ts
+//   * no scalar lists   -> comma-joined strings (see parseList/serializeList)
+//   * no Decimal        -> every money value is an integer number of cents
+// Moving to Postgres is a one-line change: set provider = "postgresql" below,
+// point DATABASE_URL at the server, then `npx prisma migrate dev`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Campuses
+// ---------------------------------------------------------------------------
+
+model University {
+  id        String   @id @default(cuid())
+  name      String
+  shortName String
+  slug      String   @unique
+  city      String
+  state     String
+  // Approximate campus centre, used for distance sorting.
+  latitude  Float
+  longitude Float
+  // Brand colour used for campus pages and crests.
+  color     String   @default("#4F46E5")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  emailDomains UniversityEmailDomain[]
+  users        User[]
+  providers    ProviderProfile[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+/// Universities do not share a single email convention, so allowed student-mail
+/// domains are data, never hardcoded. utdallas.edu, utd.edu ... all map to UTD.
+model UniversityEmailDomain {
+  id           String     @id @default(cuid())
+  domain       String     @unique
+  universityId String
+  university   University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+
+  @@index([universityId])
+}
+
+// ---------------------------------------------------------------------------
+// Accounts
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  passwordHash String?
+  // GOOGLE accounts have no password hash; kept for future OAuth linking.
+  authProvider String  @default("CREDENTIALS")
+  googleId     String? @unique
+
+  name       String
+  role       String  @default("STUDENT") // STUDENT | PROVIDER | ADMIN
+  avatarSeed String
+  bio        String?
+  phone      String?
+
+  universityId String?
+  university   University? @relation(fields: [universityId], references: [id])
+
+  // Trust signals. studentVerifiedAt is set once a .edu address on the chosen
+  // campus is confirmed; emailVerifiedAt is plain address ownership.
+  emailVerifiedAt   DateTime?
+  studentVerifiedAt DateTime?
+
+  isSuspended    Boolean   @default(false)
+  suspendedUntil DateTime?
+  suspendedNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  providerProfile    ProviderProfile?
+  appointments       Appointment[]       @relation("CustomerAppointments")
+  reviewsWritten     Review[]            @relation("ReviewAuthor")
+  favorites          Favorite[]
+  notifications      Notification[]
+  messages           Message[]
+  conversations      Conversation[]      @relation("ConversationCustomer")
+  reportsFiled       Report[]            @relation("Reporter")
+  reportsAgainst     Report[]            @relation("ReportedUser")
+  blocksMade         Block[]             @relation("Blocker")
+  blocksReceived     Block[]             @relation("Blocked")
+  verificationTokens VerificationToken[]
+
+  @@index([universityId])
+  @@index([role])
+  @@index([email])
+}
+
+model VerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique
+  purpose   String // EMAIL_VERIFY | STUDENT_VERIFY | PASSWORD_RESET
+  payload   String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Providers
+// ---------------------------------------------------------------------------
+
+model ProviderProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  businessName String
+  tagline      String?
+  bio          String
+  universityId String
+  university   University @relation(fields: [universityId], references: [id])
+
+  // PUBLIC location only. Never the doorstep — see exactAddress.
+  locationLabel String // "Near UT Dallas campus", "Northside Apartments"
+  // Revealed to the customer only once a booking is confirmed.
+  exactAddress  String?
+  latitude      Float
+  longitude     Float
+  // Comma-joined subset of AT_PROVIDER,AT_CUSTOMER,ONLINE
+  locationModes String @default("AT_PROVIDER")
+
+  // Booking policy
+  autoConfirmBookings Boolean @default(true)
+  bufferMinutes       Int     @default(0)
+  minNoticeMinutes    Int     @default(120)
+  maxAdvanceDays      Int     @default(60)
+  cancellationPolicy  String  @default("Free cancellation up to 12 hours before your appointment.")
+
+  // Moderation and trust
+  status     String  @default("ACTIVE") // ACTIVE | PAUSED | PENDING | REJECTED | SUSPENDED
+  isVerified Boolean @default(false)
+
+  // Denormalised for fast sorting; recalculated whenever a review lands.
+  ratingAvg         Float @default(0)
+  ratingCount       Int   @default(0)
+  completedBookings Int   @default(0)
+
+  // Stripe Connect account id (null until the provider onboards).
+  stripeAccountId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  services      Service[]
+  portfolio     PortfolioImage[]
+  availability  AvailabilityRule[]
+  timeOff       TimeOff[]
+  appointments  Appointment[]
+  reviews       Review[]
+  favorites     Favorite[]
+  conversations Conversation[]
+  promotions    Promotion[]
+  payouts       Payout[]
+
+  @@index([universityId])
+  @@index([status])
+  @@index([ratingAvg])
+  @@index([universityId, status])
+}
+
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  icon        String // emoji, keeps icon art out of the bundle
+  description String
+  // Comma-joined synonyms powering "braids" -> Braiding, "math tutor" -> Tutoring
+  keywords    String  @default("")
+  color       String  @default("#4F46E5")
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  services Service[]
+
+  @@index([slug])
+}
+
+model Service {
+  id         String          @id @default(cuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category        @relation(fields: [categoryId], references: [id])
+
+  title           String
+  description     String
+  priceCents      Int
+  durationMinutes Int
+  // Overrides the provider default when non-empty.
+  locationModes   String  @default("")
+  isActive        Boolean @default(true)
+  bookingCount    Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  images       PortfolioImage[]
+  appointments Appointment[]
+
+  @@index([providerId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([categoryId, isActive])
+}
+
+/// Portfolio shots. `seed` drives a deterministic locally-rendered gradient so
+/// the demo needs no external image host; point `url` at Cloudinary/Supabase
+/// once real uploads exist and the components prefer it automatically.
+model PortfolioImage {
+  id         String          @id @default(cuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  serviceId  String?
+  service    Service?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  seed       String
+  url        String?
+  caption    String?
+  sortOrder  Int             @default(0)
+  createdAt  DateTime        @default(now())
+
+  @@index([providerId])
+  @@index([serviceId])
+}
+
+// ---------------------------------------------------------------------------
+// Availability
+// ---------------------------------------------------------------------------
+
+/// One recurring weekly window. Multiple rows per weekday model split shifts
+/// (9-12, 14-18) which is also how mid-day breaks are expressed.
+model AvailabilityRule {
+  id          String          @id @default(cuid())
+  providerId  String
+  provider    ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  weekday     Int // 0 = Sunday .. 6 = Saturday
+  startMinute Int // minutes from local midnight
+  endMinute   Int
+
+  @@index([providerId])
+  @@index([providerId, weekday])
+}
+
+/// A blocked date or block of hours that overrides the weekly rules.
+model TimeOff {
+  id         String          @id @default(cuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  startAt    DateTime
+  endAt      DateTime
+  reason     String?
+  createdAt  DateTime        @default(now())
+
+  @@index([providerId])
+  @@index([providerId, startAt])
+}
+
+// ---------------------------------------------------------------------------
+// Bookings
+// ---------------------------------------------------------------------------
+
+model Appointment {
+  id   String @id @default(cuid())
+  code String @unique // human-friendly, e.g. CC-7F3K2A
+
+  customerId String
+  customer   User            @relation("CustomerAppointments", fields: [customerId], references: [id])
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id])
+  serviceId  String
+  service    Service         @relation(fields: [serviceId], references: [id])
+
+  startAt DateTime
+  endAt   DateTime
+  // endAt + provider buffer. Overlap checks use this so back-to-back bookings
+  // still respect turnaround time.
+  blockEndAt DateTime
+
+  status String @default("PENDING") // PENDING | CONFIRMED | COMPLETED | CANCELLED | NO_SHOW
+
+  // Price snapshot: services change price, past bookings must not.
+  priceCents          Int
+  platformFeeCents    Int
+  providerPayoutCents Int
+  promotionId         String?
+  promotion           Promotion? @relation(fields: [promotionId], references: [id])
+
+  locationMode  String
+  locationLabel String
+  customerNote  String?
+
+  createdAt          DateTime  @default(now())
+  confirmedAt        DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelledByUserId  String?
+  cancellationReason String?
+  reminderSentAt     DateTime?
+
+  review   Review?
+  payment  Payment?
+  messages Message[]
+
+  @@index([customerId])
+  @@index([providerId])
+  @@index([serviceId])
+  @@index([startAt])
+  @@index([providerId, startAt])
+  @@index([providerId, status])
+  @@index([customerId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Reviews
+// ---------------------------------------------------------------------------
+
+model Review {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique // one review per completed appointment
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User            @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  rating Int // 1..5
+  body   String
+
+  providerResponse    String?
+  providerRespondedAt DateTime?
+
+  isHidden  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  images ReviewImage[]
+
+  @@index([providerId])
+  @@index([authorId])
+  @@index([providerId, isHidden])
+}
+
+model ReviewImage {
+  id       String  @id @default(cuid())
+  reviewId String
+  review   Review  @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  seed     String
+  url      String?
+
+  @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Messaging
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id         String          @id @default(cuid())
+  customerId String
+  customer   User            @relation("ConversationCustomer", fields: [customerId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  messages Message[]
+
+  @@unique([customerId, providerId])
+  @@index([customerId])
+  @@index([providerId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  body      String
+  imageSeed String?
+  // Lets a message point at "your 5:30 Thursday cut".
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([conversationId])
+  @@index([conversationId, createdAt])
+  @@index([senderId])
+}
+
+// ---------------------------------------------------------------------------
+// Engagement
+// ---------------------------------------------------------------------------
+
+model Favorite {
+  id         String          @id @default(cuid())
+  userId     String
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+
+  @@unique([userId, providerId])
+  @@index([userId])
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type  String // BOOKING_CREATED | BOOKING_CONFIRMED | ...
+  title String
+  body  String
+  href  String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([userId, readAt])
+}
+
+// ---------------------------------------------------------------------------
+// Trust and safety
+// ---------------------------------------------------------------------------
+
+model Report {
+  id         String @id @default(cuid())
+  reporterId String
+  reporter   User   @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  targetType String // USER | PROVIDER | SERVICE | REVIEW | MESSAGE
+  targetId   String
+  // Denormalised so admin can act on the account without a second lookup.
+  targetUserId String?
+  targetUser   User?   @relation("ReportedUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+
+  reason  String
+  details String?
+
+  status         String    @default("OPEN") // OPEN | REVIEWING | RESOLVED | DISMISSED
+  resolutionNote String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([status])
+  @@index([targetUserId])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+// ---------------------------------------------------------------------------
+// Money
+// ---------------------------------------------------------------------------
+
+/// One payment per appointment. `gateway` is MOCK until Stripe keys exist; the
+/// shape mirrors a Stripe PaymentIntent so the swap is mechanical.
+model Payment {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  amountCents         Int
+  platformFeeCents    Int
+  providerAmountCents Int
+  currency            String @default("usd")
+
+  status     String  @default("REQUIRES_CAPTURE") // REQUIRES_CAPTURE | SUCCEEDED | REFUNDED | FAILED
+  gateway    String  @default("MOCK") // MOCK | STRIPE
+  externalId String?
+
+  createdAt  DateTime  @default(now())
+  capturedAt DateTime?
+  refundedAt DateTime?
+
+  @@index([status])
+}
+
+model Payout {
+  id         String          @id @default(cuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  amountCents Int
+  status      String    @default("PENDING") // PENDING | PAID | FAILED
+  periodStart DateTime
+  periodEnd   DateTime
+  externalId  String?
+  createdAt   DateTime  @default(now())
+  paidAt      DateTime?
+
+  @@index([providerId])
+}
+
+model Promotion {
+  id         String          @id @default(cuid())
+  providerId String
+  provider   ProviderProfile @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  code           String
+  description    String
+  discountType   String // PERCENT | AMOUNT
+  discountValue  Int // percent points, or cents
+  startsAt       DateTime
+  endsAt         DateTime
+  maxRedemptions Int?
+  redemptions    Int      @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  appointments Appointment[]
+
+  @@unique([providerId, code])
+  @@index([providerId])
+}
+
+/// Key/value store for admin-tunable platform config (marketplace fee, etc.).
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
