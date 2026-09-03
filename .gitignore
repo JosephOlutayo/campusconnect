@@ -43,3 +43,8 @@ next-env.d.ts
 # local database
 /prisma/*.db
 /prisma/*.db-journal
+
+# Java / Maven
+api/target/
+api/data/
+*.class

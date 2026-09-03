@@ -1,0 +1,70 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: campusconnect-api
+
+  # H2 in file mode: zero setup, but the data survives a restart like a real
+  # database. Swap the three datasource lines below for Postgres and nothing
+  # else in the app changes -- JPA is the abstraction that makes that true.
+  datasource:
+    # AUTO_SERVER lets a second process (the H2 console, a CLI) attach while the
+    # app is running. It is incompatible with DB_CLOSE_ON_EXIT, so that is left off.
+    url: jdbc:h2:file:./data/campusconnect;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      # The schema is generated from the entities for the MVP. Before anything
+      # real ships, switch this to `validate` and manage change with Flyway.
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+    show-sql: false
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+campusconnect:
+  # 32+ chars. Override in production via CAMPUSCONNECT_JWT_SECRET.
+  jwt:
+    secret: ${CAMPUSCONNECT_JWT_SECRET:dev-only-change-me-0123456789abcdefghijklmnop}
+    ttl-days: 30
+  # Starting marketplace fee. The admin console overrides this at runtime and
+  # the stored value wins.
+  platform-fee-percent: 10
+  # Where the Next.js client runs, for CORS.
+  cors-origins: http://localhost:3000,http://localhost:3100
+
+logging:
+  level:
+    org.springframework.web: INFO
+    org.hibernate.SQL: WARN
+
+---
+# Run with `--spring.profiles.active=postgres` once a server is available.
+spring:
+  config:
+    activate:
+      on-profile: postgres
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/campusconnect}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USER:postgres}
+    password: ${DATABASE_PASSWORD:postgres}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
