@@ -1,13 +1,10 @@
 import Link from "next/link";
 
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-  icon: string;
-  color: string;
-  _count?: { services: number };
-};
+import type { Category } from "@/lib/types";
+
+function serviceLabel(count: number): string {
+  return `${count} service${count === 1 ? "" : "s"}`;
+}
 
 /** Horizontally scrollable on phones, wrapping grid from sm upwards. */
 export function CategoryRail({ categories }: { categories: Category[] }) {
@@ -17,7 +14,7 @@ export function CategoryRail({ categories }: { categories: Category[] }) {
         <Link
           key={category.id}
           href={`/explore?category=${category.slug}`}
-          className="card card-hover flex shrink-0 items-center gap-2.5 rounded-2xl px-3.5 py-2.5 scroll-ml-1 snap-start"
+          className="card card-hover flex shrink-0 scroll-ml-1 snap-start items-center gap-2.5 rounded-2xl px-3.5 py-2.5"
         >
           <span
             className="grid size-9 shrink-0 place-items-center rounded-xl text-lg"
@@ -29,11 +26,9 @@ export function CategoryRail({ categories }: { categories: Category[] }) {
             <span className="block text-sm font-semibold whitespace-nowrap text-ink">
               {category.name}
             </span>
-            {category._count ? (
-              <span className="block text-xs whitespace-nowrap text-ink-muted">
-                {category._count.services} service{category._count.services === 1 ? "" : "s"}
-              </span>
-            ) : null}
+            <span className="block text-xs whitespace-nowrap text-ink-muted">
+              {serviceLabel(category.serviceCount)}
+            </span>
           </span>
         </Link>
       ))}
@@ -55,11 +50,9 @@ export function CategoryTile({ category }: { category: Category }) {
       </span>
       <span>
         <span className="block text-[15px] font-semibold text-ink">{category.name}</span>
-        {category._count ? (
-          <span className="mt-0.5 block text-xs text-ink-muted">
-            {category._count.services} service{category._count.services === 1 ? "" : "s"} listed
-          </span>
-        ) : null}
+        <span className="mt-0.5 block text-xs text-ink-muted">
+          {serviceLabel(category.serviceCount)} listed
+        </span>
       </span>
     </Link>
   );

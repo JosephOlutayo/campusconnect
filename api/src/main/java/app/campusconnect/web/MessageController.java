@@ -54,6 +54,33 @@ public class MessageController {
                 .body(ApiResponse.ok(Map.of("id", conversation.getId().toString())));
     }
 
+    /**
+     * Header info for one thread: who the other party is, from the viewer's
+     * point of view. Kept separate from the message list so the page can render
+     * its chrome without waiting on the full history.
+     */
+    @GetMapping("/{id}")
+    public ApiResponse<Map<String, Object>> header(@CurrentUser AuthenticatedUser me,
+                                                   @PathVariable UUID id) {
+        Conversation conversation = messagingService.requireParticipant(id, me.id());
+        boolean viewerIsCustomer = conversation.getCustomer().getId().equals(me.id());
+
+        Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("id", conversation.getId().toString());
+        row.put("providerId", conversation.getProvider().getId().toString());
+        row.put("viewerIsCustomer", viewerIsCustomer);
+        row.put("counterpartName", viewerIsCustomer
+                ? conversation.getProvider().getBusinessName()
+                : conversation.getCustomer().getName());
+        row.put("counterpartAvatarSeed", viewerIsCustomer
+                ? conversation.getProvider().getUser().getAvatarSeed()
+                : conversation.getCustomer().getAvatarSeed());
+        row.put("counterpartUserId", viewerIsCustomer
+                ? conversation.getProvider().getUser().getId().toString()
+                : conversation.getCustomer().getId().toString());
+        return ApiResponse.ok(row);
+    }
+
     @GetMapping("/{id}/messages")
     @Transactional
     public ApiResponse<Map<String, Object>> thread(@CurrentUser AuthenticatedUser me,

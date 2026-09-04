@@ -1,36 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 
-import { getSessionUser } from "@/lib/auth";
-import { getCategories, getFavoriteIds, getUniversities } from "@/lib/queries";
-import { searchProviders, SORT_OPTIONS, type SortOption } from "@/lib/search";
-import { LOCATION_MODES, type LocationMode } from "@/lib/constants";
-import { dollarsToCents } from "@/lib/money";
+import { apiGet, apiGetOrNull, getSessionUser } from "@/lib/api";
+import { SORT_OPTIONS } from "@/lib/search";
+import type { Category, SearchResult, University } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SearchBar } from "@/components/search/SearchBar";
 import { ExploreFilters } from "@/components/search/ExploreFilters";
-import { ProviderCard, ProviderCardSkeleton } from "@/components/providers/ProviderCard";
+import { ProviderCard } from "@/components/providers/ProviderCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
 
 export const metadata: Metadata = { title: "Explore services" };
 export const dynamic = "force-dynamic";
 
-type Search = {
-  q?: string;
-  category?: string;
-  university?: string;
-  min?: string;
-  max?: string;
-  rating?: string;
-  where?: string;
-  availability?: string;
-  sort?: string;
-  verified?: string;
-  page?: string;
-};
+type Search = Record<string, string | undefined>;
 
 function countActiveFilters(search: Search): number {
   return [
@@ -48,38 +33,34 @@ function countActiveFilters(search: Search): number {
 
 export default async function ExplorePage({ searchParams }: PageProps<"/explore">) {
   const search = (await searchParams) as Search;
-  const [user, categories, universities] = await Promise.all([
+
+  // The filter UI speaks dollars; the API speaks cents.
+  const params = new URLSearchParams();
+  if (search.q) params.set("q", search.q);
+  if (search.category) params.set("category", search.category);
+  if (search.university) params.set("university", search.university);
+  if (search.min) params.set("minPrice", String(Number(search.min) * 100));
+  if (search.max) params.set("maxPrice", String(Number(search.max) * 100));
+  if (search.rating) params.set("minRating", search.rating);
+  if (search.where) params.set("where", search.where);
+  if (search.availability) params.set("availability", search.availability);
+  if (search.sort) params.set("sort", search.sort);
+  if (search.verified === "1") params.set("verified", "true");
+  params.set("page", search.page ?? "1");
+  params.set("perPage", "12");
+
+  const [user, categories, universities, results] = await Promise.all([
     getSessionUser(),
-    getCategories(),
-    getUniversities(),
+    apiGet<Category[]>("/api/categories"),
+    apiGet<University[]>("/api/universities"),
+    apiGet<SearchResult>(`/api/search?${params.toString()}`),
   ]);
 
-  // No explicit campus filter? Default to the student's own campus, but keep
-  // the "All campuses" escape hatch one tap away.
-  const universityId = search.university ?? user?.universityId ?? undefined;
+  const favoriteIds = user ? await apiGetOrNull<string[]>("/api/favorites") : null;
+  const saved = new Set(favoriteIds ?? []);
 
-  const where = (search.where ?? "")
-    .split(",")
-    .filter((mode): mode is LocationMode => (LOCATION_MODES as readonly string[]).includes(mode));
-
-  const results = await searchProviders({
-    q: search.q,
-    categorySlug: search.category,
-    universityId,
-    minPriceCents: search.min ? dollarsToCents(search.min) : undefined,
-    maxPriceCents: search.max ? dollarsToCents(search.max) : undefined,
-    minRating: search.rating ? Number(search.rating) : undefined,
-    locationModes: where.length > 0 ? where : undefined,
-    availability: (search.availability as "any" | "today" | "week") ?? "any",
-    sort: (search.sort as SortOption) ?? "recommended",
-    verifiedOnly: search.verified === "1",
-    page: Number(search.page ?? 1),
-    perPage: 12,
-  });
-
-  const favoriteIds = await getFavoriteIds(user?.id);
   const activeCategory = categories.find((category) => category.slug === search.category);
-  const activeUniversity = universities.find((university) => university.id === universityId);
+  const activeUniversity = universities.find((university) => university.id === search.university);
   const activeFilters = countActiveFilters(search);
   const sortLabel =
     SORT_OPTIONS.find((option) => option.value === (search.sort ?? "recommended"))?.label ??
@@ -94,7 +75,11 @@ export default async function ExplorePage({ searchParams }: PageProps<"/explore"
   return (
     <>
       <PageHeader
-        eyebrow={activeUniversity ? activeUniversity.shortName : "All campuses"}
+        eyebrow={
+          activeUniversity
+            ? activeUniversity.shortName
+            : user?.universityShortName ?? "All campuses"
+        }
         title={heading}
         subtitle={
           results.total > 0
@@ -126,47 +111,41 @@ export default async function ExplorePage({ searchParams }: PageProps<"/explore"
         </div>
 
         <div className="min-w-0">
-          <Suspense fallback={<ResultsSkeleton />}>
-            {results.cards.length === 0 ? (
-              <EmptyState
-                icon="🔍"
-                title="Nothing matched those filters"
-                description={
-                  search.q
-                    ? `We could not find anyone offering “${search.q}” with those filters. Try widening the price range or checking all campuses.`
-                    : "Try loosening a filter or two — or check every campus instead of just yours."
-                }
-                action={
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <ButtonLink href="/explore" variant="secondary">
-                      Clear filters
-                    </ButtonLink>
-                    <ButtonLink href="/categories">Browse categories</ButtonLink>
-                  </div>
-                }
-              />
-            ) : (
-              <>
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                  {results.cards.map((card) => (
-                    <ProviderCard
-                      key={card.providerId}
-                      card={card}
-                      isFavorite={favoriteIds.has(card.providerId)}
-                    />
-                  ))}
+          {results.cards.length === 0 ? (
+            <EmptyState
+              icon="🔍"
+              title="Nothing matched those filters"
+              description={
+                search.q
+                  ? `We could not find anyone offering “${search.q}” with those filters. Try widening the price range or checking all campuses.`
+                  : "Try loosening a filter or two — or check every campus instead of just yours."
+              }
+              action={
+                <div className="flex flex-wrap justify-center gap-2">
+                  <ButtonLink href="/explore" variant="secondary">
+                    Clear filters
+                  </ButtonLink>
+                  <ButtonLink href="/categories">Browse categories</ButtonLink>
                 </div>
-
-                {results.totalPages > 1 ? (
-                  <Pagination
-                    page={results.page}
-                    totalPages={results.totalPages}
-                    search={search}
+              }
+            />
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {results.cards.map((card) => (
+                  <ProviderCard
+                    key={card.providerId}
+                    card={card}
+                    isFavorite={saved.has(card.providerId)}
                   />
-                ) : null}
-              </>
-            )}
-          </Suspense>
+                ))}
+              </div>
+
+              {results.totalPages > 1 ? (
+                <Pagination page={results.page} totalPages={results.totalPages} search={search} />
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </>
@@ -214,15 +193,5 @@ function Pagination({
         </Link>
       ) : null}
     </nav>
-  );
-}
-
-function ResultsSkeleton() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }, (_, index) => (
-        <ProviderCardSkeleton key={index} />
-      ))}
-    </div>
   );
 }

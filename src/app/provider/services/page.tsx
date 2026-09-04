@@ -1,63 +1,55 @@
 import type { Metadata } from "next";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getCategories } from "@/lib/queries";
-import { getPlatformFeePercent } from "@/lib/settings";
-import { parseLocationModes } from "@/lib/constants";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
+import type { Category, ProviderOwnProfile, ServiceOffering } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
-import { ServiceManager, type ManagedService } from "@/components/provider/ServiceManager";
+import { ServiceManager } from "@/components/provider/ServiceManager";
 
 export const metadata: Metadata = { title: "Services" };
 export const dynamic = "force-dynamic";
 
 export default async function ProviderServicesPage() {
-  const { providerId } = await requireProvider();
+  await requireProvider();
 
-  const [services, categories, feePercent, profile] = await Promise.all([
-    prisma.service.findMany({
-      where: { providerId },
-      orderBy: [{ isActive: "desc" }, { createdAt: "desc" }],
-      include: { category: { select: { id: true, name: true, icon: true } } },
-    }),
-    getCategories(),
-    getPlatformFeePercent(),
-    prisma.providerProfile.findUniqueOrThrow({
-      where: { id: providerId },
-      select: { locationModes: true },
-    }),
+  const [services, categories, profile] = await Promise.all([
+    apiGet<ServiceOffering[]>("/api/provider/services"),
+    apiGet<Category[]>("/api/categories"),
+    apiGet<ProviderOwnProfile>("/api/provider/profile"),
   ]);
 
-  const managed: ManagedService[] = services.map((service) => ({
-    id: service.id,
-    title: service.title,
-    description: service.description,
-    priceCents: service.priceCents,
-    durationMinutes: service.durationMinutes,
-    isActive: service.isActive,
-    bookingCount: service.bookingCount,
-    categoryId: service.categoryId,
-    categoryName: service.category.name,
-    categoryIcon: service.category.icon,
-    locationModes: parseLocationModes(service.locationModes || profile.locationModes),
-  }));
+  // The fee shown in the "you keep" preview is the platform default; the
+  // authoritative number is snapshotted onto each booking when it is made.
+  const feePercent = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE_PERCENT ?? 10);
 
   return (
     <>
       <PageHeader
-        title="Services"
-        subtitle="What students can book, how long it takes and what it costs."
+        title="Your services"
+        subtitle="Each service is a separate thing students can book, with its own price and length."
       />
       <ServiceManager
-        services={managed}
+        services={services.map((service) => ({
+          id: service.id,
+          title: service.title,
+          description: service.description,
+          priceCents: service.priceCents,
+          durationMinutes: service.durationMinutes,
+          isActive: service.active,
+          bookingCount: service.bookingCount,
+          categoryId: service.categoryId,
+          categoryName: service.categoryName,
+          categoryIcon: service.categoryIcon,
+          locationModes: service.locationModes,
+        }))}
         categories={categories.map((category) => ({
           id: category.id,
           name: category.name,
           icon: category.icon,
         }))}
         feePercent={feePercent}
-        defaultModes={parseLocationModes(profile.locationModes)}
+        defaultModes={profile.locationModes}
       />
     </>
   );

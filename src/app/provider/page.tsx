@@ -1,50 +1,45 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getProviderStats, getWeeklyBookings } from "@/lib/providerStats";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
 import { formatCents } from "@/lib/money";
-import { formatTimeRange, formatTimeAgo } from "@/lib/time";
+import { isSameDay } from "@/lib/time";
+import type { Booking, ProviderStats } from "@/lib/types";
 
 import { PageHeader, greeting } from "@/components/shell/PageHeader";
 import { FeatureChart } from "@/components/dashboard/FeatureChart";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { Avatar } from "@/components/ui/Avatar";
-import { StatusBadge, Badge } from "@/components/ui/Badge";
-import { Stars } from "@/components/ui/Stars";
-import { Icon } from "@/components/ui/Icon";
-import { ButtonLink } from "@/components/ui/Button";
+import { AppointmentCard } from "@/components/appointments/AppointmentCard";
 import { SectionHeading, EmptyState } from "@/components/ui/EmptyState";
-import { AppointmentActions } from "@/components/appointments/AppointmentActions";
+import { ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 
 export const metadata: Metadata = { title: "Provider dashboard" };
 export const dynamic = "force-dynamic";
 
 export default async function ProviderDashboard() {
-  const { user, providerId } = await requireProvider();
+  const user = await requireProvider();
 
-  const [stats, weekly, pendingRequests, recentReviews] = await Promise.all([
-    getProviderStats(providerId),
-    getWeeklyBookings(providerId),
-    prisma.appointment.findMany({
-      where: { providerId, status: "PENDING" },
-      orderBy: { startAt: "asc" },
-      take: 5,
-      include: {
-        service: { select: { id: true, title: true } },
-        customer: { select: { name: true, avatarSeed: true, studentVerifiedAt: true } },
-      },
-    }),
-    prisma.review.findMany({
-      where: { providerId, isHidden: false },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      include: { author: { select: { name: true, avatarSeed: true } } },
-    }),
+  const [stats, bookings] = await Promise.all([
+    apiGet<ProviderStats>("/api/provider/stats"),
+    apiGet<Booking[]>("/api/provider/bookings"),
   ]);
 
-  const trend = stats.completedThisMonth - stats.lastMonthCompleted;
+  const now = new Date();
+  const upcoming = bookings
+    .filter((booking) => ["PENDING", "CONFIRMED"].includes(booking.status))
+    .filter((booking) => new Date(booking.startAt) >= now)
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+
+  const today = upcoming.filter((booking) => isSameDay(new Date(booking.startAt), now));
+  const pending = bookings.filter((booking) => booking.status === "PENDING");
+
+  // Bars are in whole dollars — cents would make every bar look identical.
+  const bars = stats.earningsByWeek.map((week, index) => ({
+    label: week.label,
+    value: Math.round(week.amountCents / 100),
+    highlight: index === stats.earningsByWeek.length - 1,
+  }));
 
   return (
     <>
@@ -57,243 +52,109 @@ export default async function ProviderDashboard() {
               <Icon name="plus" size={16} />
               Add service
             </ButtonLink>
-            <ButtonLink href={`/providers/${providerId}`}>View public profile</ButtonLink>
+            <ButtonLink href={`/providers/${user.providerProfileId}`}>
+              View public profile
+            </ButtonLink>
           </>
         }
       />
 
-      {stats.status !== "ACTIVE" ? (
-        <div className="mb-5 rounded-2xl bg-warning-soft px-4 py-3 text-sm font-medium text-warning">
-          Your listing is <strong>{stats.status.toLowerCase()}</strong> — students cannot find or
-          book you right now.{" "}
-          <Link href="/provider/settings" className="underline">
-            Open business settings
-          </Link>
+      <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <FeatureChart
+          caption="Your earnings this month"
+          headline={formatCents(stats.earnedThisMonthCents)}
+          bars={bars.length > 0 ? bars : [{ label: "This wk", value: 0, highlight: true }]}
+          footer={`${stats.completedAllTime} completed appointments all time`}
+        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+          <StatCard
+            label="Pending requests"
+            value={stats.pendingRequests}
+            icon="bell"
+            hint={stats.pendingRequests > 0 ? "Waiting on you" : "Nothing waiting"}
+            href="/provider/bookings"
+          />
+          <StatCard
+            label="Rating"
+            value={stats.ratingAvg > 0 ? stats.ratingAvg.toFixed(1) : "—"}
+            icon="star"
+            hint={`${stats.ratingCount} reviews`}
+            href="/provider/reviews"
+          />
         </div>
+      </div>
+
+      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Upcoming"
+          value={upcoming.length}
+          icon="calendar"
+          href="/provider/calendar"
+        />
+        <StatCard label="Completed all time" value={stats.completedAllTime} icon="check" />
+        <StatCard
+          label="Earned all time"
+          value={formatCents(stats.earnedAllTimeCents)}
+          icon="money"
+          href="/provider/earnings"
+        />
+      </div>
+
+      {pending.length > 0 ? (
+        <section className="mb-8">
+          <SectionHeading
+            title="Waiting for your answer"
+            subtitle="These students are holding a slot until you accept or decline."
+          />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {pending.map((booking) => (
+              <AppointmentCard key={booking.id} booking={booking} perspective="provider" />
+            ))}
+          </div>
+        </section>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-8">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <FeatureChart
-              caption="Your earnings this month"
-              headline={formatCents(stats.earnedThisMonthCents)}
-              delta={
-                trend !== 0
-                  ? { value: `${Math.abs(trend)} vs last month`, positive: trend > 0 }
-                  : undefined
-              }
-              bars={weekly.map((week, index) => ({
-                label: week.label,
-                value: week.count,
-                highlight: index === weekly.length - 1,
-              }))}
-              footer={`${stats.completedThisMonth} completed appointment${stats.completedThisMonth === 1 ? "" : "s"} this month`}
-            />
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-              <StatCard
-                label="Pending requests"
-                value={stats.pending}
-                icon="bell"
-                hint={stats.pending > 0 ? "Waiting on you to accept" : "Nothing waiting"}
-                href="/provider/bookings"
-              />
-              <StatCard
-                label="Rating"
-                value={stats.ratingAvg > 0 ? stats.ratingAvg.toFixed(1) : "—"}
-                icon="star"
-                hint={`${stats.ratingCount} review${stats.ratingCount === 1 ? "" : "s"}`}
-                href="/provider/reviews"
-              />
-            </div>
+      <section className="mb-8">
+        <SectionHeading
+          title="Today"
+          subtitle={`${today.length} appointment${today.length === 1 ? "" : "s"}`}
+        />
+        {today.length === 0 ? (
+          <EmptyState compact icon="☕" title="Nothing on today" description="Enjoy the quiet one." />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {today.map((booking) => (
+              <AppointmentCard key={booking.id} booking={booking} perspective="provider" />
+            ))}
           </div>
+        )}
+      </section>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <StatCard label="Upcoming" value={stats.upcoming} icon="calendar" href="/provider/calendar" />
-            <StatCard label="Completed all time" value={stats.completedBookings} icon="check" />
-            <StatCard
-              label="Earned all time"
-              value={formatCents(stats.earnedAllTimeCents)}
-              icon="money"
-              href="/provider/earnings"
-            />
+      <section>
+        <SectionHeading
+          title="Coming up"
+          subtitle="The next appointments on your calendar"
+          action={
+            <ButtonLink href="/provider/calendar" variant="ghost" size="sm">
+              Full calendar
+            </ButtonLink>
+          }
+        />
+        {upcoming.length === 0 ? (
+          <EmptyState
+            icon="📅"
+            title="No upcoming bookings"
+            description="Once students book you, they show up here. Check your availability is open."
+            action={<ButtonLink href="/provider/availability">Set availability</ButtonLink>}
+          />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {upcoming.slice(0, 6).map((booking) => (
+              <AppointmentCard key={booking.id} booking={booking} perspective="provider" />
+            ))}
           </div>
-
-          <section>
-            <SectionHeading
-              title="Today"
-              subtitle={
-                stats.todays.length > 0
-                  ? `${stats.todays.length} appointment${stats.todays.length === 1 ? "" : "s"}`
-                  : "Nothing on the calendar"
-              }
-              action={
-                <Link href="/provider/calendar" className="text-sm font-semibold text-accent hover:underline">
-                  Calendar
-                </Link>
-              }
-            />
-
-            {stats.todays.length === 0 ? (
-              <EmptyState
-                compact
-                icon="☕"
-                title="A clear day"
-                description="No appointments today. Good time to add photos to your portfolio."
-              />
-            ) : (
-              <div className="space-y-3">
-                {stats.todays.map((appointment) => (
-                  <article key={appointment.id} className="card flex items-center gap-4 p-4">
-                    <div className="w-20 shrink-0 text-center">
-                      <p className="text-sm font-bold text-ink">
-                        {appointment.startAt.toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      <p className="text-xs text-ink-muted">
-                        {appointment.service.durationMinutes} min
-                      </p>
-                    </div>
-                    <span className="h-10 w-px shrink-0 bg-line" />
-                    <Avatar
-                      seed={appointment.customer.avatarSeed}
-                      name={appointment.customer.name}
-                      size="md"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-ink">
-                        {appointment.customer.name}
-                      </p>
-                      <p className="truncate text-xs text-ink-muted">{appointment.service.title}</p>
-                    </div>
-                    <StatusBadge status={appointment.status} short />
-                    <Link
-                      href={`/appointments/${appointment.id}`}
-                      className="shrink-0 rounded-lg p-2 text-ink-muted hover:bg-surface-sunken hover:text-ink"
-                      aria-label="Open appointment"
-                    >
-                      <Icon name="chevronRight" size={18} />
-                    </Link>
-                  </article>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {pendingRequests.length > 0 ? (
-            <section>
-              <SectionHeading
-                title="Needs your answer"
-                subtitle="These students are waiting for you to accept or decline"
-              />
-              <div className="space-y-3">
-                {pendingRequests.map((appointment) => (
-                  <article key={appointment.id} className="card p-4">
-                    <div className="flex items-start gap-3">
-                      <Avatar
-                        seed={appointment.customer.avatarSeed}
-                        name={appointment.customer.name}
-                        size="md"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-ink">
-                            {appointment.customer.name}
-                          </p>
-                          {appointment.customer.studentVerifiedAt ? (
-                            <Badge tone="success">Verified student</Badge>
-                          ) : null}
-                        </div>
-                        <p className="mt-0.5 text-[13px] text-ink-soft">
-                          {appointment.service.title} ·{" "}
-                          {appointment.startAt.toLocaleDateString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                          })}{" "}
-                          · {formatTimeRange(appointment.startAt, appointment.endAt)}
-                        </p>
-                        {appointment.customerNote ? (
-                          <p className="mt-2 rounded-xl bg-surface-sunken px-3 py-2 text-xs text-ink-soft">
-                            “{appointment.customerNote}”
-                          </p>
-                        ) : null}
-                        <div className="mt-3">
-                          <AppointmentActions
-                            appointmentId={appointment.id}
-                            serviceId={appointment.service.id}
-                            status={appointment.status}
-                            role="provider"
-                          />
-                        </div>
-                      </div>
-                      <p className="shrink-0 text-sm font-bold text-ink">
-                        {formatCents(appointment.priceCents)}
-                      </p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ) : null}
-        </div>
-
-        <aside className="space-y-5">
-          <section className="card p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">Recent reviews</h2>
-              <Link href="/provider/reviews" className="text-xs font-semibold text-accent hover:underline">
-                All
-              </Link>
-            </div>
-            {recentReviews.length === 0 ? (
-              <p className="text-sm text-ink-muted">No reviews yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {recentReviews.map((review) => (
-                  <div key={review.id}>
-                    <div className="flex items-center gap-2">
-                      <Avatar seed={review.author.avatarSeed} name={review.author.name} size="xs" />
-                      <span className="min-w-0 flex-1 truncate text-xs font-semibold text-ink">
-                        {review.author.name}
-                      </span>
-                      <span className="text-[11px] text-ink-muted">
-                        {formatTimeAgo(review.createdAt)}
-                      </span>
-                    </div>
-                    <Stars rating={review.rating} size="sm" showNumber={false} className="mt-1.5" />
-                    <p className="mt-1 line-clamp-3 text-[13px] text-ink-soft">{review.body}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="card p-5">
-            <h2 className="mb-3 text-base font-semibold text-ink">Quick actions</h2>
-            <div className="grid gap-2">
-              {[
-                { href: "/provider/availability" as const, label: "Update your hours", icon: "clock" as const },
-                { href: "/provider/services" as const, label: "Edit services and prices", icon: "grid" as const },
-                { href: "/provider/promotions" as const, label: "Run a promotion", icon: "sparkle" as const },
-                { href: "/provider/analytics" as const, label: "See what sells", icon: "chart" as const },
-              ].map((action) => (
-                <Link
-                  key={action.href}
-                  href={action.href}
-                  className="flex items-center gap-3 rounded-xl bg-surface-muted px-3.5 py-3 text-sm font-medium text-ink transition-colors hover:bg-accent-soft hover:text-accent"
-                >
-                  <Icon name={action.icon} size={17} />
-                  {action.label}
-                </Link>
-              ))}
-            </div>
-          </section>
-        </aside>
-      </div>
+        )}
+      </section>
     </>
   );
 }

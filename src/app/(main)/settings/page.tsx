@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/guards";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
-import { Avatar } from "@/components/ui/Avatar";
 import { SignOutButton } from "@/components/profile/SignOutButton";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -15,11 +13,6 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const user = await requireUser();
-
-  const blocked = await prisma.block.findMany({
-    where: { blockerId: user.id },
-    include: { blocked: { select: { id: true, name: true, avatarSeed: true } } },
-  });
 
   return (
     <>
@@ -35,12 +28,12 @@ export default async function SettingsPage() {
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <dt className="text-ink-muted">Campus</dt>
-              <dd className="font-medium text-ink">{user.university?.name ?? "Not set"}</dd>
+              <dd className="font-medium text-ink">{user.universityName ?? "Not set"}</dd>
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <dt className="text-ink-muted">Student verification</dt>
               <dd>
-                {user.studentVerifiedAt ? (
+                {user.studentVerified ? (
                   <Badge tone="success">Verified</Badge>
                 ) : (
                   <Badge tone="warning">Not verified</Badge>
@@ -83,30 +76,6 @@ export default async function SettingsPage() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section className="card p-5">
-          <h2 className="text-base font-semibold text-ink">Blocked accounts</h2>
-          {blocked.length === 0 ? (
-            <p className="mt-1 text-sm text-ink-muted">
-              You have not blocked anyone. Blocking stops messages and hides their listings from
-              your search.
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {blocked.map((block) => (
-                <li
-                  key={block.id}
-                  className="flex items-center gap-3 rounded-xl bg-surface-muted px-3 py-2.5"
-                >
-                  <Avatar seed={block.blocked.avatarSeed} name={block.blocked.name} size="sm" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
-                    {block.blocked.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
         </section>
 
         <section className="card p-5">

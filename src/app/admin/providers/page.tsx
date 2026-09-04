@@ -1,158 +1,124 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { prisma } from "@/lib/prisma";
-import { formatCents } from "@/lib/money";
-import { formatDate } from "@/lib/time";
+import { apiGet } from "@/lib/api";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge, VerifiedBadge } from "@/components/ui/Badge";
 import { Stars } from "@/components/ui/Stars";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { ActionMenu, type Action } from "@/components/admin/ActionMenu";
+import { ActionMenu } from "@/components/admin/ActionMenu";
 
 export const metadata: Metadata = { title: "Providers" };
 export const dynamic = "force-dynamic";
 
-const FILTERS = ["all", "ACTIVE", "PENDING", "PAUSED", "SUSPENDED", "REJECTED"] as const;
+type ProviderRow = {
+  id: string;
+  businessName: string;
+  ownerName: string;
+  ownerEmail: string;
+  avatarSeed: string;
+  university: string;
+  status: string;
+  verified: boolean;
+  ratingAvg: number;
+  ratingCount: number;
+  completedBookings: number;
+};
+
+const TABS = ["all", "ACTIVE", "PENDING", "PAUSED", "SUSPENDED", "REJECTED"] as const;
 
 export default async function AdminProvidersPage({ searchParams }: PageProps<"/admin/providers">) {
   const query = await searchParams;
   const status = typeof query.status === "string" ? query.status : "all";
 
-  const providers = await prisma.providerProfile.findMany({
-    where: status === "all" ? {} : { status },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    include: {
-      user: { select: { id: true, name: true, email: true, avatarSeed: true, isSuspended: true } },
-      university: { select: { shortName: true } },
-      _count: { select: { services: true, appointments: true, reviews: true } },
-    },
-  });
-
-  const earnings = await prisma.appointment.groupBy({
-    by: ["providerId"],
-    where: { status: "COMPLETED", providerId: { in: providers.map((p) => p.id) } },
-    _sum: { priceCents: true, platformFeeCents: true },
-  });
-  const earningsById = new Map(earnings.map((row) => [row.providerId, row]));
+  const providers = await apiGet<ProviderRow[]>(`/api/admin/providers?status=${status}`);
 
   return (
     <>
-      <PageHeader title="Providers" subtitle={`${providers.length} shown`} />
+      <PageHeader title="Providers" subtitle={`${providers.length} listings`} />
 
-      <nav className="rail mb-5 -mx-1 flex gap-2 px-1">
-        {FILTERS.map((option) => (
+      <div className="rail mb-5 -mx-1 flex gap-2 px-1">
+        {TABS.map((option) => (
           <Link
             key={option}
             href={option === "all" ? "/admin/providers" : `/admin/providers?status=${option}`}
-            aria-current={status === option ? "page" : undefined}
             className={`pill shrink-0 border capitalize transition-colors ${
               status === option
                 ? "border-accent bg-accent text-white"
-                : "border-line-strong bg-surface text-ink-soft hover:border-accent hover:text-accent"
+                : "border-line bg-surface text-ink-soft hover:border-accent hover:text-accent"
             }`}
           >
             {option === "all" ? "All" : option.toLowerCase()}
           </Link>
         ))}
-      </nav>
+      </div>
 
       {providers.length === 0 ? (
-        <EmptyState icon="💼" title="No providers match this filter" />
+        <EmptyState icon="💼" title="No providers match that filter" />
       ) : (
-        <div className="space-y-3">
-          {providers.map((provider) => {
-            const money = earningsById.get(provider.id);
-            const actions: Action[] = [];
+        <div className="card divide-y divide-line overflow-hidden">
+          {providers.map((provider) => (
+            <div key={provider.id} className="flex flex-wrap items-center gap-3 p-4">
+              <Avatar seed={provider.avatarSeed} name={provider.businessName} size="md" />
 
-            if (provider.status === "PENDING") {
-              actions.push({ action: "approve", label: "Approve", variant: "success" });
-              actions.push({ action: "reject", label: "Reject", variant: "danger", needsNote: true });
-            } else if (provider.status === "SUSPENDED" || provider.status === "REJECTED") {
-              actions.push({ action: "reinstate", label: "Reinstate", variant: "success" });
-            } else {
-              actions.push({
-                action: "suspend",
-                label: "Suspend",
-                variant: "danger",
-                confirm: `Suspend ${provider.businessName}? Their listing disappears from search immediately.`,
-              });
-            }
-
-            actions.push(
-              provider.isVerified
-                ? { action: "unverify", label: "Remove tick" }
-                : { action: "verify", label: "Verify" },
-            );
-
-            return (
-              <article key={provider.id} className="card p-4">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
-                  <Avatar
-                    seed={provider.user.avatarSeed}
-                    name={provider.businessName}
-                    size="lg"
-                  />
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/providers/${provider.id}`}
-                        className="text-sm font-bold text-ink hover:text-accent"
-                      >
-                        {provider.businessName}
-                      </Link>
-                      {provider.isVerified ? <VerifiedBadge label="" /> : null}
-                      <Badge
-                        tone={
-                          provider.status === "ACTIVE"
-                            ? "success"
-                            : provider.status === "PENDING"
-                              ? "warning"
-                              : "danger"
-                        }
-                      >
-                        {provider.status.toLowerCase()}
-                      </Badge>
-                      {provider.user.isSuspended ? (
-                        <Badge tone="danger">Account suspended</Badge>
-                      ) : null}
-                    </div>
-
-                    <p className="mt-0.5 text-xs text-ink-muted">
-                      {provider.user.name} · {provider.user.email} · {provider.university.shortName}{" "}
-                      · joined {formatDate(provider.createdAt, { month: "short", year: "numeric" })}
-                    </p>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-muted">
-                      <Stars rating={provider.ratingAvg} count={provider.ratingCount} size="sm" />
-                      <span>{provider._count.services} services</span>
-                      <span>{provider._count.appointments} bookings</span>
-                      <span>{provider.locationLabel}</span>
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 lg:text-right">
-                    <p className="text-sm font-bold text-ink">
-                      {formatCents(money?._sum.priceCents ?? 0)} gross
-                    </p>
-                    <p className="text-xs text-ink-muted">
-                      {formatCents(money?._sum.platformFeeCents ?? 0)} in fees
-                    </p>
-                    <div className="mt-3 lg:flex lg:justify-end">
-                      <ActionMenu
-                        endpoint={`/api/admin/providers/${provider.id}`}
-                        actions={actions}
-                      />
-                    </div>
-                  </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/providers/${provider.id}`}
+                    className="truncate text-sm font-semibold text-ink hover:text-accent"
+                  >
+                    {provider.businessName}
+                  </Link>
+                  {provider.verified ? <VerifiedBadge /> : null}
+                  <Badge
+                    tone={
+                      provider.status === "ACTIVE"
+                        ? "success"
+                        : provider.status === "PENDING"
+                          ? "warning"
+                          : "neutral"
+                    }
+                  >
+                    {provider.status.toLowerCase()}
+                  </Badge>
                 </div>
-              </article>
-            );
-          })}
+                <p className="truncate text-xs text-ink-muted">
+                  {provider.ownerName} · {provider.ownerEmail} · {provider.university}
+                </p>
+                <div className="mt-1 flex items-center gap-3">
+                  <Stars rating={provider.ratingAvg} count={provider.ratingCount} size="sm" />
+                  <span className="text-xs text-ink-muted">
+                    {provider.completedBookings} completed
+                  </span>
+                </div>
+              </div>
+
+              <ActionMenu
+                endpoint={`/api/admin/providers/${provider.id}`}
+                actions={[
+                  ...(provider.status === "PENDING"
+                    ? [
+                        { action: "approve", label: "Approve listing", variant: "success" as const },
+                        {
+                          action: "reject",
+                          label: "Reject listing",
+                          variant: "danger" as const,
+                          needsNote: true,
+                        },
+                      ]
+                    : []),
+                  ...(provider.status === "SUSPENDED"
+                    ? [{ action: "reinstate", label: "Reinstate", variant: "success" as const }]
+                    : [{ action: "suspend", label: "Suspend listing", variant: "danger" as const }]),
+                  provider.verified
+                    ? { action: "unverify", label: "Remove verified badge" }
+                    : { action: "verify", label: "Grant verified badge" },
+                ]}
+              />
+            </div>
+          ))}
         </div>
       )}
     </>

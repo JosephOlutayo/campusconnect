@@ -2,20 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
-import { getFavoriteIds } from "@/lib/queries";
-import { parseLocationModes, LOCATION_MODE_LABELS } from "@/lib/constants";
-import { serviceLocationModes } from "@/lib/booking";
+import { apiGetOptional, getSessionUser } from "@/lib/api";
+import { LOCATION_MODE_LABELS, type ProviderDetail } from "@/lib/types";
 import { formatCents } from "@/lib/money";
-import { distanceMiles, formatDistance } from "@/lib/geo";
-import {
-  durationLabel,
-  formatMinutes,
-  formatTimeAgo,
-  WEEKDAY_NAMES,
-} from "@/lib/time";
-import { getNextAvailable } from "@/lib/availability";
+import { formatDistance } from "@/lib/geo";
+import { durationLabel, formatMinutes, formatTimeAgo } from "@/lib/time";
+import { WEEKDAY_LABEL, WEEKDAY_ORDER } from "@/lib/constants";
 
 import { Avatar } from "@/components/ui/Avatar";
 import { Badge, VerifiedBadge } from "@/components/ui/Badge";
@@ -27,112 +19,55 @@ import { FavoriteButton } from "@/components/providers/FavoriteButton";
 import { MessageProviderButton } from "@/components/providers/MessageProviderButton";
 import { PortfolioGallery } from "@/components/providers/PortfolioGallery";
 import { ReportButton } from "@/components/providers/ReportButton";
-import { BookingWidget, type BookableService } from "@/components/booking/BookingWidget";
+import { BookingWidget } from "@/components/booking/BookingWidget";
 
 export const dynamic = "force-dynamic";
-
-async function loadProvider(id: string) {
-  return prisma.providerProfile.findUnique({
-    where: { id },
-    include: {
-      user: { select: { id: true, name: true, avatarSeed: true, studentVerifiedAt: true, createdAt: true } },
-      university: true,
-      services: {
-        where: { isActive: true },
-        include: { category: { select: { name: true, icon: true, slug: true } } },
-        orderBy: { priceCents: "asc" },
-      },
-      portfolio: { orderBy: { sortOrder: "asc" } },
-      availability: { orderBy: [{ weekday: "asc" }, { startMinute: "asc" }] },
-      promotions: {
-        where: { isActive: true, startsAt: { lte: new Date() }, endsAt: { gte: new Date() } },
-      },
-      reviews: {
-        where: { isHidden: false },
-        orderBy: { createdAt: "desc" },
-        take: 12,
-        include: {
-          author: { select: { name: true, avatarSeed: true, studentVerifiedAt: true } },
-          images: true,
-          appointment: { select: { service: { select: { title: true } } } },
-        },
-      },
-      _count: { select: { reviews: { where: { isHidden: false } } } },
-    },
-  });
-}
 
 export async function generateMetadata({
   params,
 }: PageProps<"/providers/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const provider = await prisma.providerProfile.findUnique({
-    where: { id },
-    select: { businessName: true, tagline: true },
-  });
-  if (!provider) return { title: "Provider not found" };
-  return { title: provider.businessName, description: provider.tagline ?? undefined };
+  const { data } = await apiGetOptional<ProviderDetail>(`/api/providers/${id}`);
+  if (!data) return { title: "Provider not found" };
+  return { title: data.businessName, description: data.tagline ?? undefined };
 }
 
 export default async function ProviderPage({ params, searchParams }: PageProps<"/providers/[id]">) {
   const { id } = await params;
   const query = await searchParams;
-  const provider = await loadProvider(id);
-  if (!provider) notFound();
 
-  const user = await getSessionUser();
-  const favoriteIds = await getFavoriteIds(user?.id);
-  const isOwner = user?.id === provider.userId;
+  const [{ data: provider, notFound: missing }, user] = await Promise.all([
+    apiGetOptional<ProviderDetail>(`/api/providers/${id}`),
+    getSessionUser(),
+  ]);
+  if (!provider || missing) notFound();
 
-  // A paused or unapproved listing is only visible to its owner and admins.
+  const isOwner = user?.providerProfileId === provider.id;
   const publiclyVisible = provider.status === "ACTIVE";
-  if (!publiclyVisible && !isOwner && user?.role !== "ADMIN") notFound();
-
-  const cheapest = provider.services[0];
-  const nextAvailable = cheapest
-    ? await getNextAvailable(provider.id, cheapest.durationMinutes)
-    : null;
-
-  const bookableServices: BookableService[] = provider.services.map((service) => ({
-    id: service.id,
-    title: service.title,
-    description: service.description,
-    priceCents: service.priceCents,
-    durationMinutes: service.durationMinutes,
-    categoryName: service.category.name,
-    categoryIcon: service.category.icon,
-    locationModes: serviceLocationModes(service.locationModes, provider.locationModes),
-  }));
 
   const requestedService =
     typeof query.service === "string" &&
-    bookableServices.some((service) => service.id === query.service)
+    provider.services.some((service) => service.id === query.service)
       ? query.service
       : undefined;
 
-  const miles = distanceMiles(
-    { latitude: provider.university.latitude, longitude: provider.university.longitude },
-    { latitude: provider.latitude, longitude: provider.longitude },
-  );
-
-  const hoursByDay = new Map<number, Array<{ startMinute: number; endMinute: number }>>();
-  for (const rule of provider.availability) {
-    const list = hoursByDay.get(rule.weekday) ?? [];
-    list.push(rule);
-    hoursByDay.set(rule.weekday, list);
+  const hoursByDay = new Map<string, ProviderDetail["hours"]>();
+  for (const window of provider.hours) {
+    const list = hoursByDay.get(window.dayOfWeek) ?? [];
+    list.push(window);
+    hoursByDay.set(window.dayOfWeek, list);
   }
 
-  // Counted across every visible review, not just the twelve rendered below —
-  // otherwise the bars silently disagree with the total beside them.
-  const distribution = await prisma.review.groupBy({
-    by: ["rating"],
-    where: { providerId: provider.id, isHidden: false },
-    _count: { _all: true },
-  });
   const ratingBreakdown = [5, 4, 3, 2, 1].map((star) => ({
     star,
-    count: distribution.find((row) => row.rating === star)?._count._all ?? 0,
+    count: provider.ratingDistribution[String(star)] ?? 0,
   }));
+
+  const nextAvailable = provider.nextAvailable ? new Date(provider.nextAvailable) : null;
+  const cover =
+    provider.portfolio.length > 0
+      ? provider.portfolio.slice(0, 3)
+      : [1, 2, 3].map((n) => ({ id: `ph-${n}`, seed: `${provider.id}-${n}`, url: null, caption: null }));
 
   return (
     <>
@@ -145,30 +80,17 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
       {/* Cover strip built from the portfolio. */}
       <div className="relative mb-16 overflow-hidden rounded-[var(--radius-card)] sm:mb-14">
         <div className="grid h-40 grid-cols-3 gap-1 sm:h-52">
-          {(provider.portfolio.length > 0
-            ? provider.portfolio.slice(0, 3)
-            : [{ id: "a", seed: `${provider.id}-1`, url: null }, { id: "b", seed: `${provider.id}-2`, url: null }, { id: "c", seed: `${provider.id}-3`, url: null }]
-          ).map((image) => (
-            <SeedImage
-              key={image.id}
-              seed={image.seed}
-              url={"url" in image ? image.url : null}
-              alt=""
-              className="h-full w-full"
-            />
+          {cover.map((image) => (
+            <SeedImage key={image.id} seed={image.seed} url={image.url} alt="" className="h-full w-full" />
           ))}
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
         <div className="absolute top-3 right-3">
-          <FavoriteButton
-            providerId={provider.id}
-            initial={favoriteIds.has(provider.id)}
-            withLabel
-          />
+          <FavoriteButton providerId={provider.id} initial={provider.favorited} withLabel />
         </div>
         <div className="absolute -bottom-12 left-5 sm:-bottom-10">
           <Avatar
-            seed={provider.user.avatarSeed}
+            seed={provider.avatarSeed}
             name={provider.businessName}
             size="2xl"
             ring
@@ -179,14 +101,13 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-8">
-          {/* Identity */}
           <header>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-[1.75rem] leading-tight font-bold tracking-tight text-ink sm:text-[2rem]">
                 {provider.businessName}
               </h1>
               {provider.isVerified ? <VerifiedBadge /> : null}
-              {provider.user.studentVerifiedAt ? (
+              {provider.studentVerified ? (
                 <Badge tone="success">
                   <Icon name="check" size={13} /> Verified student
                 </Badge>
@@ -198,22 +119,26 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
             ) : null}
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-              <Stars rating={provider.ratingAvg} count={provider._count.reviews} size="md" />
+              <Stars rating={provider.ratingAvg} count={provider.ratingCount} size="md" />
               <span className="inline-flex items-center gap-1.5 text-ink-muted">
                 <Icon name="pin" size={15} />
                 {provider.locationLabel}
               </span>
               <Link
-                href={`/campuses/${provider.university.slug}`}
+                href={`/campuses/${provider.universitySlug}`}
                 className="inline-flex items-center gap-1.5 font-semibold text-accent hover:underline"
               >
-                {provider.university.shortName}
+                {provider.universityShortName}
               </Link>
-              <span className="text-ink-muted">{formatDistance(miles)} from campus</span>
+              {provider.distanceMiles !== null ? (
+                <span className="text-ink-muted">
+                  {formatDistance(provider.distanceMiles)} from campus
+                </span>
+              ) : null}
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              {parseLocationModes(provider.locationModes).map((mode) => (
+              {provider.locationModes.map((mode) => (
                 <Badge key={mode} tone="neutral">
                   {LOCATION_MODE_LABELS[mode]}
                 </Badge>
@@ -254,17 +179,6 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
             )}
           </header>
 
-          {provider.promotions.length > 0 ? (
-            <section className="rounded-2xl border border-accent bg-accent-soft p-4">
-              <p className="text-sm font-bold text-accent">Active offer</p>
-              {provider.promotions.map((promotion) => (
-                <p key={promotion.id} className="mt-1 text-sm text-ink">
-                  <span className="font-mono font-bold">{promotion.code}</span> — {promotion.description}
-                </p>
-              ))}
-            </section>
-          ) : null}
-
           <section>
             <SectionHeading title="About" />
             <p className="text-[15px] leading-relaxed whitespace-pre-line text-ink-soft">
@@ -283,12 +197,12 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-lg">{service.category.icon}</span>
+                        <span className="text-lg">{service.categoryIcon}</span>
                         <h3 className="text-[15px] font-bold text-ink">{service.title}</h3>
                       </div>
                       <p className="mt-1.5 text-sm text-ink-soft">{service.description}</p>
                       <p className="mt-2 text-xs text-ink-muted">
-                        {durationLabel(service.durationMinutes)} · {service.category.name}
+                        {durationLabel(service.durationMinutes)} · {service.categoryName}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -314,10 +228,10 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
           <section>
             <SectionHeading
               title="Reviews"
-              subtitle={`${provider._count.reviews} review${provider._count.reviews === 1 ? "" : "s"} from completed appointments`}
+              subtitle={`${provider.ratingCount} review${provider.ratingCount === 1 ? "" : "s"} from completed appointments`}
             />
 
-            {provider._count.reviews === 0 ? (
+            {provider.ratingCount === 0 ? (
               <p className="rounded-2xl bg-surface-sunken px-4 py-6 text-center text-sm text-ink-muted">
                 No reviews yet. Reviews can only be left by students who completed an appointment.
               </p>
@@ -334,11 +248,11 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
                       showNumber={false}
                       className="mt-2 justify-center"
                     />
-                    <p className="mt-1 text-xs text-ink-muted">{provider._count.reviews} reviews</p>
+                    <p className="mt-1 text-xs text-ink-muted">{provider.ratingCount} reviews</p>
                   </div>
                   <div className="min-w-0 flex-1 space-y-1.5">
                     {ratingBreakdown.map((row) => {
-                      const total = provider._count.reviews || 1;
+                      const total = provider.ratingCount || 1;
                       return (
                         <div key={row.star} className="flex items-center gap-2.5">
                           <span className="w-3 text-xs font-semibold text-ink-muted">{row.star}</span>
@@ -359,42 +273,22 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
                   {provider.reviews.map((review) => (
                     <article key={review.id} className="card p-4">
                       <div className="flex items-start gap-3">
-                        <Avatar
-                          seed={review.author.avatarSeed}
-                          name={review.author.name}
-                          size="sm"
-                        />
+                        <Avatar seed={review.authorAvatarSeed} name={review.authorName} size="sm" />
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-sm font-semibold text-ink">{review.author.name}</p>
-                            {review.author.studentVerifiedAt ? (
+                            <p className="text-sm font-semibold text-ink">{review.authorName}</p>
+                            {review.authorStudentVerified ? (
                               <Badge tone="success">Verified student</Badge>
                             ) : null}
                             <span className="text-xs text-ink-muted">
-                              {formatTimeAgo(review.createdAt)}
+                              {formatTimeAgo(new Date(review.createdAt))}
                             </span>
                           </div>
                           <div className="mt-1 flex items-center gap-2">
                             <Stars rating={review.rating} size="sm" showNumber={false} />
-                            <span className="text-xs text-ink-muted">
-                              {review.appointment.service.title}
-                            </span>
+                            <span className="text-xs text-ink-muted">{review.serviceTitle}</span>
                           </div>
                           <p className="mt-2 text-sm leading-relaxed text-ink-soft">{review.body}</p>
-
-                          {review.images.length > 0 ? (
-                            <div className="mt-3 flex gap-2">
-                              {review.images.map((image) => (
-                                <SeedImage
-                                  key={image.id}
-                                  seed={image.seed}
-                                  url={image.url}
-                                  alt="Review photo"
-                                  className="size-16 rounded-xl"
-                                />
-                              ))}
-                            </div>
-                          ) : null}
 
                           {review.providerResponse ? (
                             <div className="mt-3 rounded-2xl bg-surface-sunken p-3">
@@ -406,7 +300,11 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
                           ) : null}
 
                           <div className="mt-2">
-                            <ReportButton targetType="REVIEW" targetId={review.id} label="Report review" />
+                            <ReportButton
+                              targetType="REVIEW"
+                              targetId={review.id}
+                              label="Report review"
+                            />
                           </div>
                         </div>
                       </div>
@@ -422,8 +320,14 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
         <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
           {nextAvailable ? (
             <p className="rounded-2xl bg-success-soft px-4 py-2.5 text-sm font-semibold text-success">
-              Next available: {nextAvailable.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}{" "}
-              at {nextAvailable.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+              Next available:{" "}
+              {nextAvailable.toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}{" "}
+              at{" "}
+              {nextAvailable.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
             </p>
           ) : null}
 
@@ -434,7 +338,7 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
           ) : (
             <BookingWidget
               providerName={provider.businessName}
-              services={bookableServices}
+              services={provider.services}
               autoConfirm={provider.autoConfirmBookings}
               cancellationPolicy={provider.cancellationPolicy}
               locationLabel={provider.locationLabel}
@@ -447,11 +351,11 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
           <section className="card p-5">
             <h2 className="mb-3 text-base font-semibold text-ink">Business hours</h2>
             <dl className="space-y-1.5 text-sm">
-              {WEEKDAY_NAMES.map((day, index) => {
-                const windows = hoursByDay.get(index) ?? [];
+              {WEEKDAY_ORDER.map((day) => {
+                const windows = hoursByDay.get(day) ?? [];
                 return (
                   <div key={day} className="flex items-center justify-between gap-3">
-                    <dt className="text-ink-muted">{day}</dt>
+                    <dt className="text-ink-muted">{WEEKDAY_LABEL[day]}</dt>
                     <dd className={windows.length > 0 ? "font-medium text-ink" : "text-ink-faint"}>
                       {windows.length === 0
                         ? "Closed"
@@ -489,7 +393,11 @@ export default async function ProviderPage({ params, searchParams }: PageProps<"
               </li>
             </ul>
             <div className="mt-4 border-t border-line pt-3">
-              <ReportButton targetType="PROVIDER" targetId={provider.id} label="Report this provider" />
+              <ReportButton
+                targetType="PROVIDER"
+                targetId={provider.id}
+                label="Report this provider"
+              />
             </div>
           </section>
         </aside>

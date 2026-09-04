@@ -58,6 +58,35 @@ public class ProviderController {
                 "status", profile.getStatus().name())));
     }
 
+    /**
+     * The provider's OWN profile, including fields the public view withholds
+     * (exact address, booking policy, moderation status). Backs the business
+     * settings form.
+     */
+    @GetMapping("/profile")
+    public ApiResponse<Map<String, Object>> ownProfile(@CurrentUser AuthenticatedUser me) {
+        ProviderProfile profile = providerService.requireOwned(me.id());
+        Map<String, Object> row = new java.util.LinkedHashMap<>();
+        row.put("id", profile.getId().toString());
+        row.put("businessName", profile.getBusinessName());
+        row.put("tagline", profile.getTagline() == null ? "" : profile.getTagline());
+        row.put("bio", profile.getBio());
+        row.put("locationLabel", profile.getLocationLabel());
+        row.put("exactAddress", profile.getExactAddress() == null ? "" : profile.getExactAddress());
+        row.put("locationModes", profile.getLocationModes().stream().map(Enum::name).toList());
+        row.put("autoConfirmBookings", profile.isAutoConfirmBookings());
+        row.put("bufferMinutes", profile.getBufferMinutes());
+        row.put("minNoticeMinutes", profile.getMinNoticeMinutes());
+        row.put("maxAdvanceDays", profile.getMaxAdvanceDays());
+        row.put("cancellationPolicy", profile.getCancellationPolicy());
+        row.put("status", profile.getStatus().name());
+        row.put("verified", profile.isVerified());
+        row.put("ratingAvg", profile.getRatingAvg());
+        row.put("ratingCount", profile.getRatingCount());
+        row.put("universityShortName", profile.getUniversity().getShortName());
+        return ApiResponse.ok(row);
+    }
+
     @GetMapping("/stats")
     public ApiResponse<ProviderStatsDto> stats(@CurrentUser AuthenticatedUser me) {
         return ApiResponse.ok(providerService.stats(me.id()));
@@ -186,6 +215,10 @@ public class ProviderController {
                     row.put("discountType", promotion.getDiscountType().name());
                     row.put("discountValue", String.valueOf(promotion.getDiscountValue()));
                     row.put("redemptions", String.valueOf(promotion.getRedemptions()));
+                    row.put("maxRedemptions", promotion.getMaxRedemptions() == null
+                            ? "" : String.valueOf(promotion.getMaxRedemptions()));
+                    row.put("startsAt", promotion.getStartsAt().toString());
+                    row.put("endsAt", promotion.getEndsAt().toString());
                     row.put("active", String.valueOf(promotion.isActive()));
                     return row;
                 })

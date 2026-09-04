@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { getUniversities } from "@/lib/queries";
+import { apiGet } from "@/lib/api";
+import type { University } from "@/lib/types";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Icon } from "@/components/ui/Icon";
 
 export const metadata: Metadata = { title: "Campuses" };
+export const dynamic = "force-dynamic";
 
 export default async function CampusesPage() {
-  const universities = await getUniversities();
+  const universities = await apiGet<University[]>("/api/universities");
 
   return (
     <>
@@ -41,7 +43,7 @@ export default async function CampusesPage() {
                 </span>
                 <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
                   <Icon name="users" size={14} />
-                  {university._count.providers} providers
+                  {university.providerCount} providers
                 </span>
               </div>
             </div>

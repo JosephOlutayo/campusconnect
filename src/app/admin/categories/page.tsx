@@ -1,17 +1,27 @@
 import type { Metadata } from "next";
 
-import { prisma } from "@/lib/prisma";
+import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { CategoryManager } from "@/components/admin/CategoryManager";
 
 export const metadata: Metadata = { title: "Categories" };
 export const dynamic = "force-dynamic";
 
+type CategoryRow = {
+  id: string;
+  name: string;
+  slug: string;
+  icon: string;
+  description: string;
+  keywords: string;
+  color: string;
+  isActive: boolean;
+  serviceCount: number;
+};
+
 export default async function AdminCategoriesPage() {
-  const categories = await prisma.category.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: { _count: { select: { services: true } } },
-  });
+  // The admin listing includes hidden categories, unlike the public one.
+  const categories = await apiGet<CategoryRow[]>("/api/admin/categories");
 
   return (
     <>
@@ -19,19 +29,7 @@ export default async function AdminCategoriesPage() {
         title="Categories"
         subtitle="The taxonomy behind search and browse. Adding one takes effect immediately — no deploy."
       />
-      <CategoryManager
-        categories={categories.map((category) => ({
-          id: category.id,
-          name: category.name,
-          slug: category.slug,
-          icon: category.icon,
-          description: category.description,
-          keywords: category.keywords,
-          color: category.color,
-          isActive: category.isActive,
-          serviceCount: category._count.services,
-        }))}
-      />
+      <CategoryManager categories={categories} />
     </>
   );
 }

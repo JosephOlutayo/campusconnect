@@ -74,4 +74,17 @@ public interface ServiceOfferingRepository extends JpaRepository<ServiceOffering
            "where s.active = true and s.provider.university.id = :universityId and s.provider.status = :status")
     List<UUID> findCategoryIdsForUniversity(@Param("universityId") UUID universityId,
                                             @Param("status") ProviderStatus status);
+
+    /**
+     * Live service count per category, in one query rather than one per row.
+     * Returns [categoryId, count] pairs.
+     */
+    @Query("""
+            select s.category.id, count(s) from ServiceOffering s
+            where s.active = true and s.provider.status = :status
+              and (:universityId is null or s.provider.university.id = :universityId)
+            group by s.category.id
+            """)
+    List<Object[]> countActiveByCategory(@Param("universityId") UUID universityId,
+                                         @Param("status") ProviderStatus status);
 }

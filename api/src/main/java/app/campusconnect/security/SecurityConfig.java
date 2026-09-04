@@ -65,12 +65,16 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         // Browsing the marketplace does not require an account.
+                        // Note /api/stats/me is deliberately NOT here — campus
+                        // figures are public, a person's own numbers are not.
                         .requestMatchers(HttpMethod.GET,
                                 "/api/search/**",
                                 "/api/providers/**",
                                 "/api/categories/**",
                                 "/api/universities/**",
-                                "/api/availability/**").permitAll()
+                                "/api/availability/**",
+                                "/api/stats/campus",
+                                "/api/stats/settings").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()

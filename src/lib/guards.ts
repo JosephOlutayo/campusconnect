@@ -1,22 +1,32 @@
-import { getSessionUser } from "@/lib/auth";
-import { ApiError } from "@/lib/api";
+import "server-only";
 
-/** API-route equivalents of the page-level guards in lib/auth.ts. */
+import { redirect } from "next/navigation";
 
-export async function apiUser() {
+import { getSessionUser, type SessionUser } from "@/lib/api";
+
+/**
+ * Page-level access guards.
+ *
+ * These mirror the checks the Java API already enforces — the API is the real
+ * boundary, and these exist so a signed-out visitor gets a login redirect
+ * instead of a page full of empty panels.
+ */
+
+export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
-  if (!user) throw new ApiError("Sign in first.", 401);
+  if (!user) redirect("/login");
   return user;
 }
 
-export async function apiProvider() {
-  const user = await apiUser();
-  if (!user.providerProfile) throw new ApiError("Create a provider profile first.", 403);
-  return { user, providerId: user.providerProfile.id };
+export async function requireAdmin(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (user.role !== "ADMIN") redirect("/");
+  return user;
 }
 
-export async function apiAdmin() {
-  const user = await apiUser();
-  if (user.role !== "ADMIN") throw new ApiError("Admins only.", 403);
-  return user;
+/** Provider pages need both an account and a created business profile. */
+export async function requireProvider(): Promise<SessionUser & { providerProfileId: string }> {
+  const user = await requireUser();
+  if (!user.providerProfileId) redirect("/provider/onboarding");
+  return user as SessionUser & { providerProfileId: string };
 }

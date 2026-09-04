@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
-import { markNotificationsRead } from "@/lib/notifications";
+import { apiGet } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
 import { formatTimeAgo } from "@/lib/time";
+import type { Notification } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Icon, type IconName } from "@/components/ui/Icon";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { MarkNotificationsRead } from "@/components/notifications/MarkNotificationsRead";
 
 export const metadata: Metadata = { title: "Notifications" };
 export const dynamic = "force-dynamic";
@@ -30,32 +31,37 @@ const ICONS: Record<string, IconName> = {
 };
 
 export default async function NotificationsPage() {
-  const user = await requireUser();
+  await requireUser();
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: user.id },
-    orderBy: { createdAt: "desc" },
-    take: 60,
-  });
-
-  // Opening the page is the read receipt. Done after the read so the "new"
-  // styling still shows on this render.
-  await markNotificationsRead(user.id);
+  const payload = await apiGet<{ notifications: Notification[]; unread: number }>(
+    "/api/notifications",
+  );
 
   return (
     <>
       <PageHeader title="Notifications" subtitle="Bookings, messages and reviews." />
 
-      {notifications.length === 0 ? (
-        <EmptyState icon="🔔" title="Nothing here yet" description="We will let you know when something happens." />
+      {/* Opening the page is the read receipt, but marking read is a write, so
+          it happens from the client after this render — that way the "new"
+          styling is still visible on the notifications you just arrived to. */}
+      <MarkNotificationsRead unread={payload.unread} />
+
+      {payload.notifications.length === 0 ? (
+        <EmptyState
+          icon="🔔"
+          title="Nothing here yet"
+          description="We will let you know when something happens."
+        />
       ) : (
         <div className="card divide-y divide-line overflow-hidden">
-          {notifications.map((notification) => {
+          {payload.notifications.map((notification) => {
             const body = (
               <div className="flex gap-3.5 p-4">
                 <span
                   className={`grid size-10 shrink-0 place-items-center rounded-xl ${
-                    notification.readAt ? "bg-surface-sunken text-ink-muted" : "bg-accent-soft text-accent"
+                    notification.readAt
+                      ? "bg-surface-sunken text-ink-muted"
+                      : "bg-accent-soft text-accent"
                   }`}
                 >
                   <Icon name={ICONS[notification.type] ?? "bell"} size={18} />
@@ -64,7 +70,7 @@ export default async function NotificationsPage() {
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="truncate text-sm font-semibold text-ink">{notification.title}</p>
                     <span className="shrink-0 text-xs text-ink-muted">
-                      {formatTimeAgo(notification.createdAt)}
+                      {formatTimeAgo(new Date(notification.createdAt))}
                     </span>
                   </div>
                   <p className="mt-0.5 text-[13px] text-ink-soft">{notification.body}</p>

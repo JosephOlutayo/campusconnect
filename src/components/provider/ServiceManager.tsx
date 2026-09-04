@@ -88,10 +88,10 @@ export function ServiceManager({ services, categories, feePercent, defaultModes 
       title: form.title,
       description: form.description,
       categoryId: form.categoryId,
-      priceDollars: Number(form.priceDollars),
+      priceCents: Math.round(Number(form.priceDollars) * 100),
       durationMinutes: Number(form.durationMinutes),
       locationModes: form.locationModes,
-      isActive: form.isActive,
+      active: form.isActive,
     };
 
     const response = await fetch(
@@ -130,7 +130,7 @@ export function ServiceManager({ services, categories, feePercent, defaultModes 
     await fetch(`/api/provider/services/${service.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ isActive: !service.isActive }),
+      body: JSON.stringify({ active: !service.isActive }),
     });
     toast(service.isActive ? "Service paused." : "Service is live again.");
     router.refresh();

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -306,6 +307,9 @@ public class DataSeeder implements ApplicationRunner {
             profile.setAutoConfirmBookings(spec.autoConfirm());
             profile.setBufferMinutes(spec.buffer());
             profile.setStatus(ProviderStatus.ACTIVE);
+            // Backdate so "new this week" means something — without this every
+            // seeded provider looks like it joined today.
+            profile.setCreatedAt(Instant.now().minus(between(6, 200), ChronoUnit.DAYS));
             profile = providers.save(profile);
 
             for (ServiceSpec serviceSpec : spec.services()) {

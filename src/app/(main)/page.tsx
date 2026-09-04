@@ -1,15 +1,9 @@
 import Link from "next/link";
 
-import { getSessionUser } from "@/lib/auth";
-import { searchProviders } from "@/lib/search";
-import {
-  getCampusActivity,
-  getCampusStats,
-  getCategories,
-  getFavoriteIds,
-  getUpcomingAppointments,
-} from "@/lib/queries";
+import { apiGet, apiGetOrNull, getSessionUser } from "@/lib/api";
 import { APP_NAME } from "@/lib/constants";
+import { formatCents } from "@/lib/money";
+import type { Booking, CampusOverview, Category, SearchResult } from "@/lib/types";
 
 import { PageHeader, greeting } from "@/components/shell/PageHeader";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -23,9 +17,8 @@ import { ButtonLink } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Stars } from "@/components/ui/Stars";
 import { Icon } from "@/components/ui/Icon";
-import { formatCents } from "@/lib/money";
 
-// Availability changes minute to minute, so the home page is always fresh.
+// Availability changes minute to minute, so nothing here is cached.
 export const dynamic = "force-dynamic";
 
 const QUICK_SEARCHES = [
@@ -38,33 +31,28 @@ const QUICK_SEARCHES = [
 
 export default async function HomePage() {
   const user = await getSessionUser();
-  const universityId = user?.universityId ?? null;
 
-  const [categories, activity, stats, favoriteIds, recommended, topRated, newest] =
-    await Promise.all([
-      getCategories(),
-      getCampusActivity(universityId),
-      getCampusStats(universityId),
-      getFavoriteIds(user?.id),
-      searchProviders({
-        universityId: universityId ?? undefined,
-        sort: "recommended",
-        perPage: 6,
-      }),
-      searchProviders({ universityId: universityId ?? undefined, sort: "rating", perPage: 4 }),
-      searchProviders({ universityId: universityId ?? undefined, sort: "newest", perPage: 3 }),
-    ]);
+  // The API defaults an authenticated caller to their own campus, so these
+  // deliberately send no university parameter.
+  const [categories, overview, recommended, newest] = await Promise.all([
+    apiGet<Category[]>("/api/categories"),
+    apiGet<CampusOverview>("/api/stats/campus"),
+    apiGet<SearchResult>("/api/search?sort=recommended&perPage=6"),
+    apiGet<SearchResult>("/api/search?sort=newest&perPage=3"),
+  ]);
 
-  const upcoming = user ? await getUpcomingAppointments(user.id, 3) : [];
-  const campusName = user?.university?.shortName ?? "your campus";
+  const [topRated, upcoming, favoriteIds] = await Promise.all([
+    apiGet<SearchResult>("/api/search?sort=rating&perPage=4"),
+    user ? apiGetOrNull<Booking[]>("/api/bookings/upcoming") : Promise.resolve(null),
+    user ? apiGetOrNull<string[]>("/api/favorites") : Promise.resolve(null),
+  ]);
 
-  // Do not repeat a provider that already appeared in the recommended grid.
-  const shown = new Set(recommended.cards.map((card) => card.providerId));
-  const newArrivals = newest.cards.filter((card) => !shown.has(card.providerId));
+  const saved = new Set(favoriteIds ?? []);
+  const campusName = user?.universityShortName ?? "your campus";
 
-  const bars = activity.ranked.slice(0, 4).map((entry, index) => ({
+  const bars = overview.topCategories.slice(0, 4).map((entry, index) => ({
     label: entry.name.split(" ")[0],
-    value: entry.count,
+    value: Number(entry.count),
     highlight: index === 0,
   }));
 
@@ -72,7 +60,9 @@ export default async function HomePage() {
     <>
       <PageHeader
         showDate
-        title={user ? `${greeting()}, ${user.name.split(" ")[0]}` : "Find someone on campus who can do it"}
+        title={
+          user ? `${greeting()}, ${user.name.split(" ")[0]}` : "Find someone on campus who can do it"
+        }
         subtitle={
           user
             ? undefined
@@ -91,7 +81,7 @@ export default async function HomePage() {
 
       {/* Hero search — the single most important control on the page. */}
       <section className="mb-6">
-        <SearchBar size="lg" autoFocus={false} />
+        <SearchBar size="lg" />
         <div className="rail mt-3 -mx-1 flex gap-2 px-1">
           {QUICK_SEARCHES.map((item) => (
             <Link
@@ -110,20 +100,16 @@ export default async function HomePage() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
             <FeatureChart
               caption={`Booked on ${campusName} this month`}
-              headline={String(activity.total)}
+              headline={String(overview.bookingsThisMonth)}
               delta={
-                stats.newThisWeek > 0
-                  ? { value: `${stats.newThisWeek} new providers`, positive: true }
+                overview.newProvidersThisWeek > 0
+                  ? { value: `${overview.newProvidersThisWeek} new providers`, positive: true }
                   : undefined
               }
-              bars={
-                bars.length > 0
-                  ? bars
-                  : [{ label: "Quiet", value: 1, highlight: true }]
-              }
+              bars={bars.length > 0 ? bars : [{ label: "Quiet", value: 1, highlight: true }]}
               footer={
-                activity.ranked[0]
-                  ? `${activity.ranked[0].icon} ${activity.ranked[0].name} is leading right now`
+                overview.topCategories[0]
+                  ? `${overview.topCategories[0].icon} ${overview.topCategories[0].name} is leading right now`
                   : "Be the first booking this month"
               }
             />
@@ -131,14 +117,14 @@ export default async function HomePage() {
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
               <StatCard
                 label="Providers near you"
-                value={stats.providerCount}
+                value={overview.providerCount}
                 icon="users"
-                hint={`${stats.serviceCount} services listed on ${campusName}`}
+                hint={`${overview.serviceCount} services listed on ${campusName}`}
                 href="/explore"
               />
               <StatCard
                 label="Average rating"
-                value={stats.averageRating > 0 ? stats.averageRating.toFixed(1) : "—"}
+                value={overview.averageRating > 0 ? overview.averageRating.toFixed(1) : "—"}
                 icon="star"
                 hint="Across every reviewed provider"
               />
@@ -181,25 +167,22 @@ export default async function HomePage() {
                   <ProviderCard
                     key={card.providerId}
                     card={card}
-                    isFavorite={favoriteIds.has(card.providerId)}
+                    isFavorite={saved.has(card.providerId)}
                   />
                 ))}
               </div>
             )}
           </section>
 
-          {newArrivals.length > 0 ? (
+          {newest.cards.length > 0 ? (
             <section>
-              <SectionHeading
-                title="New on campus"
-                subtitle="Just started taking bookings"
-              />
+              <SectionHeading title="New on campus" subtitle="Just started taking bookings" />
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {newArrivals.map((card) => (
+                {newest.cards.map((card) => (
                   <ProviderCard
                     key={card.providerId}
                     card={card}
-                    isFavorite={favoriteIds.has(card.providerId)}
+                    isFavorite={saved.has(card.providerId)}
                   />
                 ))}
               </div>
@@ -221,14 +204,12 @@ export default async function HomePage() {
 
             {!user ? (
               <div className="text-center">
-                <p className="text-sm text-ink-muted">
-                  Sign in to see your upcoming appointments.
-                </p>
+                <p className="text-sm text-ink-muted">Sign in to see your upcoming appointments.</p>
                 <ButtonLink href="/login" size="sm" className="mt-3 w-full">
                   Sign in
                 </ButtonLink>
               </div>
-            ) : upcoming.length === 0 ? (
+            ) : !upcoming || upcoming.length === 0 ? (
               <EmptyState
                 compact
                 icon="📅"
@@ -242,8 +223,8 @@ export default async function HomePage() {
               />
             ) : (
               <div className="space-y-3">
-                {upcoming.map((appointment) => (
-                  <AppointmentCard key={appointment.id} appointment={appointment} compact />
+                {upcoming.slice(0, 3).map((booking) => (
+                  <AppointmentCard key={booking.id} booking={booking} compact />
                 ))}
               </div>
             )}

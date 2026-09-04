@@ -1,29 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { parseLocationModes } from "@/lib/constants";
-import { getPlatformFeePercent } from "@/lib/settings";
-import { activeGateway } from "@/lib/payments";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
+import type { ProviderOwnProfile } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
-import { Badge, VerifiedBadge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
+import { Badge, VerifiedBadge } from "@/components/ui/Badge";
 import { BusinessSettingsForm } from "@/components/provider/BusinessSettingsForm";
 
 export const metadata: Metadata = { title: "Business settings" };
 export const dynamic = "force-dynamic";
 
 export default async function ProviderSettingsPage() {
-  const { user, providerId } = await requireProvider();
+  const user = await requireProvider();
 
-  const [profile, feePercent] = await Promise.all([
-    prisma.providerProfile.findUniqueOrThrow({
-      where: { id: providerId },
-      include: { university: { select: { name: true, shortName: true } } },
-    }),
-    getPlatformFeePercent(),
+  const [profile, settings] = await Promise.all([
+    apiGet<ProviderOwnProfile>("/api/provider/profile"),
+    apiGet<{ platformFeePercent: number; paymentGateway: string }>("/api/stats/settings"),
   ]);
 
   return (
@@ -35,11 +30,11 @@ export default async function ProviderSettingsPage() {
           <BusinessSettingsForm
             profile={{
               businessName: profile.businessName,
-              tagline: profile.tagline,
+              tagline: profile.tagline || null,
               bio: profile.bio,
               locationLabel: profile.locationLabel,
-              exactAddress: profile.exactAddress,
-              locationModes: parseLocationModes(profile.locationModes),
+              exactAddress: profile.exactAddress || null,
+              locationModes: profile.locationModes,
               autoConfirmBookings: profile.autoConfirmBookings,
               bufferMinutes: profile.bufferMinutes,
               minNoticeMinutes: profile.minNoticeMinutes,
@@ -52,43 +47,50 @@ export default async function ProviderSettingsPage() {
 
         <aside className="space-y-5">
           <section className="card p-5 text-center">
-            <Avatar seed={user.avatarSeed} name={profile.businessName} size="2xl" className="mx-auto" />
-            <h2 className="mt-3 text-base font-bold text-ink">{profile.businessName}</h2>
-            <p className="text-sm text-ink-muted">{profile.university.name}</p>
+            <Avatar
+              seed={user.avatarSeed}
+              name={profile.businessName}
+              size="2xl"
+              className="mx-auto"
+            />
+            <h2 className="mt-3 text-lg font-bold text-ink">{profile.businessName}</h2>
+            <p className="text-sm text-ink-muted">{profile.universityShortName}</p>
+
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-              {profile.isVerified ? <VerifiedBadge /> : <Badge tone="neutral">Unverified</Badge>}
+              {profile.verified ? <VerifiedBadge /> : <Badge tone="neutral">Unverified</Badge>}
               <Badge tone={profile.status === "ACTIVE" ? "success" : "warning"}>
                 {profile.status.toLowerCase()}
               </Badge>
             </div>
+
             <Link
-              href={`/providers/${providerId}`}
-              className="mt-4 inline-block text-sm font-semibold text-accent hover:underline"
+              href={`/providers/${profile.id}`}
+              className="mt-4 inline-flex text-sm font-semibold text-accent hover:underline"
             >
               View public profile
             </Link>
           </section>
 
           <section className="card p-5">
-            <h2 className="text-base font-semibold text-ink">Verification</h2>
-            <p className="mt-1.5 text-sm text-ink-muted">
-              {profile.isVerified
-                ? "Your identity has been checked by our team. The blue tick shows on every listing."
-                : "Verified providers get a blue tick and rank higher in search. Our team reviews providers with a track record of completed bookings and clean reports."}
+            <h2 className="text-base font-semibold text-ink">Marketplace fee</h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              CampusConnect keeps {settings.platformFeePercent}% of each completed booking. The rate
+              is locked in on every booking at the moment it is made, so a change never affects
+              money you have already earned.
+            </p>
+            <p className="mt-3 rounded-xl bg-surface-sunken px-3 py-2 text-xs text-ink-muted">
+              Payments are running on the{" "}
+              {settings.paymentGateway === "MOCK" ? "test gateway — no real cards" : "Stripe"}{" "}
+              gateway.
             </p>
           </section>
 
           <section className="card p-5">
-            <h2 className="text-base font-semibold text-ink">Payouts</h2>
-            <p className="mt-1.5 text-sm text-ink-muted">
-              You keep {100 - feePercent}% of every completed booking.
-            </p>
-            <p className="mt-3 rounded-xl bg-surface-sunken px-3 py-2.5 text-xs text-ink-muted">
-              {activeGateway() === "MOCK"
-                ? "Payments run through the test gateway. Stripe Connect onboarding appears here once a Stripe key is configured."
-                : profile.stripeAccountId
-                  ? `Connected to Stripe account ${profile.stripeAccountId}`
-                  : "Connect your Stripe account to receive payouts."}
+            <h2 className="text-base font-semibold text-ink">Verification</h2>
+            <p className="mt-1 text-sm text-ink-muted">
+              {profile.verified
+                ? "Your identity has been checked. The badge shows on your profile and search cards."
+                : "Verification is granted by an admin. It is not something you can switch on yourself."}
             </p>
           </section>
         </aside>

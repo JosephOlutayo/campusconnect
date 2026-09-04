@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
+import type { Booking } from "@/lib/types";
 import { formatCents } from "@/lib/money";
 import {
   addDays,
@@ -32,7 +33,7 @@ const VIEWS = ["day", "week", "month"] as const;
 type View = (typeof VIEWS)[number];
 
 export default async function CalendarPage({ searchParams }: PageProps<"/provider/calendar">) {
-  const { providerId } = await requireProvider();
+  await requireProvider();
   const query = await searchParams;
 
   const view = (VIEWS.includes(query.view as View) ? query.view : "week") as View;
@@ -45,38 +46,54 @@ export default async function CalendarPage({ searchParams }: PageProps<"/provide
     month: { from: startOfMonth(anchor), to: endOfMonth(anchor) },
   }[view];
 
-  const [appointments, timeOff] = await Promise.all([
-    prisma.appointment.findMany({
-      where: {
-        providerId,
-        startAt: { gte: range.from, lte: range.to },
-        status: { not: "CANCELLED" },
-      },
-      orderBy: { startAt: "asc" },
-      include: {
-        service: { select: { title: true, durationMinutes: true } },
-        customer: { select: { name: true, avatarSeed: true } },
-      },
-    }),
-    prisma.timeOff.findMany({
-      where: { providerId, startAt: { lte: range.to }, endAt: { gte: range.from } },
-    }),
+  const [allBookings, allTimeOff] = await Promise.all([
+    apiGet<Booking[]>("/api/provider/bookings"),
+    apiGet<Array<{ id: string; startAt: string; endAt: string; reason: string }>>(
+      "/api/provider/time-off",
+    ),
   ]);
 
-  const step = view === "month" ? 30 : view === "week" ? 7 : 1;
-  const prevKey = toDateKey(addDays(anchor, -step));
-  const nextKey = toDateKey(addDays(anchor, step));
+  // The API hands back the whole list; narrowing to the visible range here keeps
+  // the calendar to a single request no matter which view is showing.
+  const appointments = allBookings
+    .filter((booking) => booking.status !== "CANCELLED")
+    .map((booking) => ({
+      id: booking.id,
+      startAt: new Date(booking.startAt),
+      endAt: new Date(booking.endAt),
+      status: booking.status,
+      priceCents: booking.priceCents,
+      locationLabel: booking.locationLabel,
+      service: { title: booking.serviceTitle, durationMinutes: booking.durationMinutes },
+      customer: { name: booking.customerName, avatarSeed: booking.customerAvatarSeed },
+    }))
+    .filter((booking) => booking.startAt >= range.from && booking.startAt <= range.to)
+    .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+
+  const timeOff = allTimeOff
+    .map((entry) => ({
+      id: entry.id,
+      startAt: new Date(entry.startAt),
+      endAt: new Date(entry.endAt),
+      reason: entry.reason || null,
+    }))
+    .filter((entry) => entry.startAt <= range.to && entry.endAt >= range.from);
+
+  // Cancelled bookings are already filtered out, so this is money actually on
+  // the calendar for the period being viewed.
+  const revenue = appointments.reduce((sum, booking) => sum + booking.priceCents, 0);
 
   const title =
     view === "day"
       ? formatFullDate(anchor)
-      : view === "week"
-        ? `Week of ${startOfWeek(anchor).toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
-        : anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+      : view === "month"
+        ? anchor.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+        : `Week of ${formatFullDate(startOfWeek(anchor))}`;
 
-  const revenue = appointments
-    .filter((appointment) => appointment.status !== "NO_SHOW")
-    .reduce((sum, appointment) => sum + appointment.providerPayoutCents, 0);
+  // Step the anchor by whichever unit the current view shows.
+  const step = view === "day" ? 1 : view === "week" ? 7 : 30;
+  const prevKey = toDateKey(addDays(anchor, -step));
+  const nextKey = toDateKey(addDays(anchor, step));
 
   return (
     <>

@@ -1,8 +1,21 @@
-// Values that would be Postgres enums live here as const tuples + union types.
-// Keeping them in one file means the SQLite string columns still get compile
-// time exhaustiveness checking.
+/**
+ * UI-side constants.
+ *
+ * The domain enums now live in Java; these are the presentation labels and the
+ * option lists the forms render. Values are re-exported from types.ts so there
+ * is exactly one definition of a location mode on this side of the wire.
+ */
+
+export {
+  LOCATION_MODE_LABELS,
+  LOCATION_MODE_SHORT,
+  type LocationMode,
+  type BookingStatus as AppointmentStatus,
+} from "@/lib/types";
 
 export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "CampusConnect";
+
+export const LOCATION_MODES = ["AT_PROVIDER", "AT_CUSTOMER", "ONLINE"] as const;
 
 export const ROLES = ["STUDENT", "PROVIDER", "ADMIN"] as const;
 export type Role = (typeof ROLES)[number];
@@ -14,51 +27,6 @@ export const APPOINTMENT_STATUSES = [
   "CANCELLED",
   "NO_SHOW",
 ] as const;
-export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
-
-/** Statuses that occupy a slot on the provider calendar. */
-export const BLOCKING_STATUSES: AppointmentStatus[] = ["PENDING", "CONFIRMED"];
-
-export const PROVIDER_STATUSES = [
-  "ACTIVE",
-  "PAUSED",
-  "PENDING",
-  "REJECTED",
-  "SUSPENDED",
-] as const;
-export type ProviderStatus = (typeof PROVIDER_STATUSES)[number];
-
-export const LOCATION_MODES = ["AT_PROVIDER", "AT_CUSTOMER", "ONLINE"] as const;
-export type LocationMode = (typeof LOCATION_MODES)[number];
-
-export const LOCATION_MODE_LABELS: Record<LocationMode, string> = {
-  AT_PROVIDER: "You go to them",
-  AT_CUSTOMER: "They come to you",
-  ONLINE: "Online",
-};
-
-export const LOCATION_MODE_SHORT: Record<LocationMode, string> = {
-  AT_PROVIDER: "At provider",
-  AT_CUSTOMER: "They travel",
-  ONLINE: "Online",
-};
-
-export const NOTIFICATION_TYPES = [
-  "BOOKING_CREATED",
-  "BOOKING_CONFIRMED",
-  "BOOKING_DECLINED",
-  "BOOKING_CANCELLED",
-  "BOOKING_RESCHEDULED",
-  "BOOKING_REMINDER",
-  "BOOKING_COMPLETED",
-  "MESSAGE_RECEIVED",
-  "REVIEW_RECEIVED",
-  "REVIEW_REPLY",
-  "PROVIDER_APPROVED",
-  "PROVIDER_REJECTED",
-  "PAYOUT_PAID",
-] as const;
-export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export const REPORT_REASONS = [
   "Inappropriate content",
@@ -70,27 +38,32 @@ export const REPORT_REASONS = [
   "Other",
 ] as const;
 
-export const SETTING_KEYS = {
-  platformFeePercent: "platform_fee_percent",
-  providerAutoApprove: "provider_auto_approve",
-} as const;
+/** Weekday names indexed to match JavaScript's Date.getDay(). */
+export const WEEKDAY_ORDER = [
+  "MONDAY",
+  "TUESDAY",
+  "WEDNESDAY",
+  "THURSDAY",
+  "FRIDAY",
+  "SATURDAY",
+  "SUNDAY",
+] as const;
 
-// --- comma-joined list helpers (stand-in for Postgres text[]) ----------------
+export const WEEKDAY_LABEL: Record<string, string> = {
+  MONDAY: "Monday",
+  TUESDAY: "Tuesday",
+  WEDNESDAY: "Wednesday",
+  THURSDAY: "Thursday",
+  FRIDAY: "Friday",
+  SATURDAY: "Saturday",
+  SUNDAY: "Sunday",
+};
 
-export function parseList(value: string | null | undefined): string[] {
-  if (!value) return [];
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
+/** Java's DayOfWeek name for a JS Date.getDay() index (0 = Sunday). */
+export function weekdayNameFromIndex(index: number): string {
+  return ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"][index];
 }
 
-export function serializeList(values: readonly string[]): string {
-  return Array.from(new Set(values.filter(Boolean))).join(",");
-}
-
-export function parseLocationModes(value: string | null | undefined): LocationMode[] {
-  return parseList(value).filter((mode): mode is LocationMode =>
-    (LOCATION_MODES as readonly string[]).includes(mode),
-  );
+export function weekdayIndexFromName(name: string): number {
+  return ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"].indexOf(name);
 }

@@ -41,13 +41,15 @@ public class AccountController {
     private final AuthService authService;
     private final ReviewService reviewService;
     private final NotificationService notificationService;
+    private final app.campusconnect.service.SearchService searchService;
 
     public AccountController(UserRepository users, UniversityRepository universities,
                              FavoriteRepository favorites, ProviderProfileRepository providers,
                              ReportRepository reports, ReviewRepository reviews,
                              ServiceOfferingRepository services, MessageRepository messages,
                              AuthService authService, ReviewService reviewService,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             app.campusconnect.service.SearchService searchService) {
         this.users = users;
         this.universities = universities;
         this.favorites = favorites;
@@ -59,6 +61,7 @@ public class AccountController {
         this.authService = authService;
         this.reviewService = reviewService;
         this.notificationService = notificationService;
+        this.searchService = searchService;
     }
 
     @PatchMapping("/profile")
@@ -111,6 +114,16 @@ public class AccountController {
     @GetMapping("/favorites")
     public ApiResponse<List<UUID>> listFavorites(@CurrentUser AuthenticatedUser me) {
         return ApiResponse.ok(favorites.findProviderIdsForUser(me.id()));
+    }
+
+    /** Full provider cards for the saved-providers page, newest save first. */
+    @GetMapping("/favorites/cards")
+    public ApiResponse<List<app.campusconnect.web.dto.CatalogDtos.ProviderCardDto>> favoriteCards(
+            @CurrentUser AuthenticatedUser me) {
+        List<UUID> providerIds = favorites.findByUserIdOrderByCreatedAtDesc(me.id()).stream()
+                .map(favorite -> favorite.getProvider().getId())
+                .toList();
+        return ApiResponse.ok(searchService.cardsForProviders(providerIds));
     }
 
     // --- reviews -------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin } from "@/lib/guards";
 import { AppShell } from "@/components/shell/AppShell";
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {

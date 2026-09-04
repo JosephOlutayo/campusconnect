@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 
-import { getCategories } from "@/lib/queries";
+import { apiGet } from "@/lib/api";
+import type { Category } from "@/lib/types";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { CategoryTile } from "@/components/categories/CategoryRail";
 import { SearchBar } from "@/components/search/SearchBar";
 
 export const metadata: Metadata = { title: "Categories" };
+export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {
-  const categories = await getCategories();
+  const categories = await apiGet<Category[]>("/api/categories");
 
   return (
     <>

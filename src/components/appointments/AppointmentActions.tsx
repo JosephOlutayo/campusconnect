@@ -19,7 +19,7 @@ import {
 } from "@/lib/time";
 
 type Props = {
-  appointmentId: string;
+  bookingId: string;
   serviceId: string;
   status: string;
   /** Which side of the booking the viewer is on. */
@@ -30,7 +30,7 @@ type Props = {
 type Slot = { startAt: string };
 
 export function AppointmentActions({
-  appointmentId,
+  bookingId,
   serviceId,
   status,
   role,
@@ -48,7 +48,7 @@ export function AppointmentActions({
     setBusy(action);
     setError("");
 
-    const response = await fetch(`/api/bookings/${appointmentId}`, {
+    const response = await fetch(`/api/bookings/${bookingId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ action, ...extra }),
@@ -161,7 +161,7 @@ export function AppointmentActions({
         open={rescheduleOpen}
         onClose={() => setRescheduleOpen(false)}
         serviceId={serviceId}
-        appointmentId={appointmentId}
+        bookingId={bookingId}
         onPick={(startAt) => act("reschedule", { startAt })}
         busy={busy === "reschedule"}
       />
@@ -173,14 +173,14 @@ function RescheduleModal({
   open,
   onClose,
   serviceId,
-  appointmentId,
+  bookingId,
   onPick,
   busy,
 }: {
   open: boolean;
   onClose: () => void;
   serviceId: string;
-  appointmentId: string;
+  bookingId: string;
   onPick: (startAt: string) => void;
   busy: boolean;
 }) {
@@ -200,14 +200,14 @@ function RescheduleModal({
     const controller = new AbortController();
     (async () => {
       const response = await fetch(
-        `/api/availability?serviceId=${serviceId}&from=${toDateKey(stripStart)}&days=7&exclude=${appointmentId}`,
+        `/api/availability?serviceId=${serviceId}&from=${toDateKey(stripStart)}&days=7&exclude=${bookingId}`,
         { signal: controller.signal },
       ).catch(() => null);
       const payload = await response?.json().catch(() => null);
       if (payload?.ok) setOpenDays(new Set(payload.data.openDays as DateKey[]));
     })();
     return () => controller.abort();
-  }, [open, serviceId, stripStart, appointmentId]);
+  }, [open, serviceId, stripStart, bookingId]);
 
   useEffect(() => {
     if (!open) return;
@@ -215,7 +215,7 @@ function RescheduleModal({
     (async () => {
       const response = await fetch(
         // `exclude` stops the current booking from blocking its own new slot.
-        `/api/availability?serviceId=${serviceId}&date=${dateKey}&exclude=${appointmentId}`,
+        `/api/availability?serviceId=${serviceId}&date=${dateKey}&exclude=${bookingId}`,
         { signal: controller.signal },
       ).catch(() => null);
       const payload = await response?.json().catch(() => null);
@@ -224,7 +224,7 @@ function RescheduleModal({
       }
     })();
     return () => controller.abort();
-  }, [open, serviceId, dateKey, appointmentId]);
+  }, [open, serviceId, dateKey, bookingId]);
 
   return (
     <Modal open={open} onClose={onClose} title="Pick a new time" size="md">

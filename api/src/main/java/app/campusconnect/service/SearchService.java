@@ -86,6 +86,28 @@ public class SearchService {
         return matches;
     }
 
+    /**
+     * Cards for a specific set of providers, in the order given.
+     * Used by the saved-providers page, which already knows who it wants and so
+     * skips filtering and ranking entirely.
+     */
+    @Transactional(readOnly = true)
+    public List<ProviderCardDto> cardsForProviders(List<UUID> providerIds) {
+        if (providerIds.isEmpty()) {
+            return List.of();
+        }
+        List<ServiceOffering> rows = new ArrayList<>();
+        for (UUID providerId : providerIds) {
+            rows.addAll(services.findByProviderIdAndActiveTrueOrderByPriceCentsAsc(providerId));
+        }
+        List<ProviderCardDto> cards = buildCards(rows, null);
+
+        // Preserve the caller's ordering (favourites are newest-saved first).
+        Map<UUID, ProviderCardDto> byId = new LinkedHashMap<>();
+        cards.forEach(card -> byId.put(card.providerId(), card));
+        return providerIds.stream().map(byId::get).filter(Objects::nonNull).toList();
+    }
+
     @Transactional(readOnly = true)
     public SearchResultDto search(SearchQuery query, UUID viewerId) {
         String term = (query.q() == null || query.q().isBlank()) ? null : query.q().trim();
@@ -103,6 +125,32 @@ public class SearchService {
         if (rows.size() > MAX_ROWS) {
             rows = rows.subList(0, MAX_ROWS);
         }
+        List<ProviderCardDto> cards = buildCards(rows, query.locationModes());
+
+        if (cards.isEmpty()) {
+            return new SearchResultDto(List.of(), 0, query.page(), query.perPage(), 1);
+        }
+        List<ProviderCardDto> filtered = applyAvailabilityFilter(cards, query.availability());
+        sort(filtered, query.sort(), term);
+
+        int total = filtered.size();
+        int perPage = Math.max(1, query.perPage());
+        int page = Math.max(1, query.page());
+        int totalPages = Math.max(1, (int) Math.ceil(total / (double) perPage));
+        int start = Math.min((page - 1) * perPage, total);
+        int end = Math.min(start + perPage, total);
+
+        return new SearchResultDto(filtered.subList(start, end), total, page, perPage, totalPages);
+    }
+
+    /**
+     * Collapses a flat list of services into one card per provider and enriches
+     * them with portfolio seeds and next-available. Shared by search and by the
+     * saved-providers page so the card shape can never drift between them.
+     *
+     * @param modeFilter optional location-mode filter; null or empty keeps everything.
+     */
+    private List<ProviderCardDto> buildCards(List<ServiceOffering> rows, Set<LocationMode> modeFilter) {
 
         // Collapse to one card per provider. "from" is the cheapest match, but
         // the headline is the most-booked service — picking the cheapest would
@@ -113,9 +161,9 @@ public class SearchService {
 
         for (ServiceOffering service : rows) {
             ProviderProfile provider = service.getProvider();
-            if (query.locationModes() != null && !query.locationModes().isEmpty()) {
+            if (modeFilter != null && !modeFilter.isEmpty()) {
                 boolean matches = service.effectiveLocationModes().stream()
-                        .anyMatch(query.locationModes()::contains);
+                        .anyMatch(modeFilter::contains);
                 if (!matches) {
                     continue;
                 }
@@ -135,7 +183,7 @@ public class SearchService {
         }
 
         if (headlineByProvider.isEmpty()) {
-            return new SearchResultDto(List.of(), 0, query.page(), query.perPage(), 1);
+            return List.of();
         }
 
         // Next-available for the whole page in one batch, not one query each.
@@ -144,10 +192,6 @@ public class SearchService {
                 durations.put(providerId, service.getDurationMinutes()));
         Map<UUID, LocalDateTime> nextAvailable =
                 availabilityService.nextAvailableBatch(durations, NEXT_AVAILABLE_LOOKAHEAD_DAYS);
-
-        Set<UUID> favoriteIds = viewerId == null
-                ? Set.of()
-                : new HashSet<>(favorites.findProviderIdsForUser(viewerId));
 
         Map<UUID, List<String>> seedsByProvider = new HashMap<>();
         for (PortfolioImage image : portfolio.findByProviderIdInOrderBySortOrderAsc(headlineByProvider.keySet())) {
@@ -185,17 +229,8 @@ public class SearchService {
                     provider.getCreatedAt()));
         });
 
-        List<ProviderCardDto> filtered = applyAvailabilityFilter(cards, query.availability());
-        sort(filtered, query.sort(), term);
 
-        int total = filtered.size();
-        int perPage = Math.max(1, query.perPage());
-        int page = Math.max(1, query.page());
-        int totalPages = Math.max(1, (int) Math.ceil(total / (double) perPage));
-        int start = Math.min((page - 1) * perPage, total);
-        int end = Math.min(start + perPage, total);
-
-        return new SearchResultDto(filtered.subList(start, end), total, page, perPage, totalPages);
+        return cards;
     }
 
     private List<ProviderCardDto> applyAvailabilityFilter(List<ProviderCardDto> cards, String availability) {

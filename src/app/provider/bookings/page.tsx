@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
 import { formatCents } from "@/lib/money";
 import { formatFullDate, formatTimeRange } from "@/lib/time";
-import { LOCATION_MODE_SHORT, type LocationMode } from "@/lib/constants";
+import { LOCATION_MODE_SHORT, type Booking } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -25,154 +25,148 @@ const TABS = [
   { value: "cancelled", label: "Cancelled" },
 ] as const;
 
+type Tab = (typeof TABS)[number]["value"];
+
+/** Filtering happens here because the API returns the provider's full list. */
+function filterFor(bookings: Booking[], tab: Tab): Booking[] {
+  const now = new Date();
+  switch (tab) {
+    case "pending":
+      return bookings.filter((booking) => booking.status === "PENDING");
+    case "upcoming":
+      return bookings.filter(
+        (booking) => booking.status === "CONFIRMED" && new Date(booking.startAt) >= now,
+      );
+    case "completed":
+      return bookings.filter((booking) => booking.status === "COMPLETED");
+    case "cancelled":
+      return bookings.filter(
+        (booking) => booking.status === "CANCELLED" || booking.status === "NO_SHOW",
+      );
+    default:
+      return bookings;
+  }
+}
+
 export default async function ProviderBookingsPage({
   searchParams,
 }: PageProps<"/provider/bookings">) {
-  const { providerId } = await requireProvider();
+  await requireProvider();
   const query = await searchParams;
-  const tab = (typeof query.tab === "string" ? query.tab : "all") as (typeof TABS)[number]["value"];
+  const tab = (typeof query.tab === "string" ? query.tab : "all") as Tab;
 
-  const now = new Date();
-  const where = {
-    all: {},
-    pending: { status: "PENDING" },
-    upcoming: { status: "CONFIRMED", startAt: { gte: now } },
-    completed: { status: "COMPLETED" },
-    cancelled: { status: { in: ["CANCELLED", "NO_SHOW"] } },
-  }[tab] ?? {};
+  const all = await apiGet<Booking[]>("/api/provider/bookings");
+  const bookings = filterFor(all, tab);
 
-  const [appointments, counts] = await Promise.all([
-    prisma.appointment.findMany({
-      where: { providerId, ...where },
-      orderBy: tab === "completed" || tab === "cancelled" ? { startAt: "desc" } : { startAt: "asc" },
-      take: 60,
-      include: {
-        service: { select: { id: true, title: true } },
-        customer: { select: { id: true, name: true, avatarSeed: true, studentVerifiedAt: true } },
-      },
-    }),
-    prisma.appointment.groupBy({
-      by: ["status"],
-      where: { providerId },
-      _count: { _all: true },
-    }),
-  ]);
-
-  const pendingCount = counts.find((row) => row.status === "PENDING")?._count._all ?? 0;
+  const counts: Record<Tab, number> = {
+    all: all.length,
+    pending: filterFor(all, "pending").length,
+    upcoming: filterFor(all, "upcoming").length,
+    completed: filterFor(all, "completed").length,
+    cancelled: filterFor(all, "cancelled").length,
+  };
 
   return (
     <>
       <PageHeader
         title="Bookings"
-        subtitle={
-          pendingCount > 0
-            ? `${pendingCount} request${pendingCount === 1 ? "" : "s"} waiting on you`
-            : "Everything that has been booked with you"
-        }
+        subtitle="Accept requests, mark appointments complete and handle cancellations."
       />
 
-      <nav className="rail mb-5 -mx-1 flex gap-2 px-1" aria-label="Filter bookings">
+      <div className="rail mb-5 -mx-1 flex gap-2 px-1">
         {TABS.map((option) => (
           <Link
             key={option.value}
             href={option.value === "all" ? "/provider/bookings" : `/provider/bookings?tab=${option.value}`}
-            aria-current={tab === option.value ? "page" : undefined}
             className={`pill shrink-0 border transition-colors ${
               tab === option.value
                 ? "border-accent bg-accent text-white"
-                : "border-line-strong bg-surface text-ink-soft hover:border-accent hover:text-accent"
+                : "border-line bg-surface text-ink-soft hover:border-accent hover:text-accent"
             }`}
           >
             {option.label}
-            {option.value === "pending" && pendingCount > 0 ? ` (${pendingCount})` : ""}
+            <span className={tab === option.value ? "text-white/70" : "text-ink-faint"}>
+              {counts[option.value]}
+            </span>
           </Link>
         ))}
-      </nav>
+      </div>
 
-      {appointments.length === 0 ? (
+      {bookings.length === 0 ? (
         <EmptyState
           icon="📋"
           title="Nothing here"
           description={
             tab === "pending"
-              ? "No requests waiting. When someone books, it lands here first if you review requests manually."
-              : "No bookings match this filter yet."
+              ? "No requests waiting on you right now."
+              : "Bookings will show up here as students make them."
           }
         />
       ) : (
         <div className="space-y-3">
-          {appointments.map((appointment) => (
-            <article key={appointment.id} className="card p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-                <Avatar
-                  seed={appointment.customer.avatarSeed}
-                  name={appointment.customer.name}
-                  size="lg"
-                />
+          {bookings.map((booking) => {
+            const startAt = new Date(booking.startAt);
+            const endAt = new Date(booking.endAt);
+            return (
+              <article key={booking.id} className="card p-4">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                  <Avatar
+                    seed={booking.customerAvatarSeed}
+                    name={booking.customerName}
+                    size="lg"
+                  />
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-sm font-bold text-ink">{appointment.customer.name}</p>
-                    {appointment.customer.studentVerifiedAt ? (
-                      <Badge tone="success">Verified student</Badge>
-                    ) : null}
-                    <StatusBadge status={appointment.status} short />
-                    <span className="font-mono text-xs text-ink-faint">{appointment.code}</span>
-                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/provider/bookings/${booking.id}`}
+                        className="text-[15px] font-bold text-ink hover:text-accent"
+                      >
+                        {booking.serviceTitle}
+                      </Link>
+                      <StatusBadge status={booking.status} />
+                      <Badge tone="neutral">{booking.code}</Badge>
+                    </div>
 
-                  <p className="mt-1 text-sm font-medium text-ink-soft">
-                    {appointment.service.title}
-                  </p>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-muted">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon name="calendar" size={14} />
-                      {formatFullDate(appointment.startAt)}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon name="clock" size={14} />
-                      {formatTimeRange(appointment.startAt, appointment.endAt)}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5">
-                      <Icon name="pin" size={14} />
-                      {LOCATION_MODE_SHORT[appointment.locationMode as LocationMode] ??
-                        appointment.locationLabel}
-                    </span>
-                  </div>
-
-                  {appointment.customerNote ? (
-                    <p className="mt-2.5 rounded-xl bg-surface-sunken px-3 py-2 text-xs text-ink-soft">
-                      “{appointment.customerNote}”
+                    <p className="mt-1 text-sm text-ink-soft">
+                      {booking.customerName} · {formatFullDate(startAt)}
                     </p>
-                  ) : null}
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink-muted">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Icon name="clock" size={14} />
+                        {formatTimeRange(startAt, endAt)}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <Icon name="pin" size={14} />
+                        {LOCATION_MODE_SHORT[booking.locationMode]}
+                      </span>
+                      <span className="font-semibold text-ink">
+                        {formatCents(booking.priceCents)}
+                      </span>
+                      <span>you keep {formatCents(booking.providerPayoutCents)}</span>
+                    </div>
+
+                    {booking.customerNote ? (
+                      <p className="mt-2 rounded-xl bg-surface-sunken px-3 py-2 text-[13px] text-ink-soft">
+                        “{booking.customerNote}”
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="shrink-0">
                     <AppointmentActions
-                      appointmentId={appointment.id}
-                      serviceId={appointment.service.id}
-                      status={appointment.status}
+                      bookingId={booking.id}
+                      serviceId={booking.serviceId}
+                      status={booking.status}
                       role="provider"
+                      cancellationPolicy={booking.cancellationPolicy}
                     />
-                    <Link
-                      href={`/appointments/${appointment.id}`}
-                      className="text-xs font-semibold text-accent hover:underline"
-                    >
-                      Full details
-                    </Link>
                   </div>
                 </div>
-
-                <div className="shrink-0 text-right">
-                  <p className="text-lg font-bold text-ink">
-                    {formatCents(appointment.priceCents)}
-                  </p>
-                  <p className="text-xs text-ink-muted">
-                    you get {formatCents(appointment.providerPayoutCents)}
-                  </p>
-                </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </div>
       )}
     </>

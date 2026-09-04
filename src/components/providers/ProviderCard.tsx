@@ -9,8 +9,7 @@ import { FavoriteButton } from "@/components/providers/FavoriteButton";
 import { formatCents } from "@/lib/money";
 import { formatDistance } from "@/lib/geo";
 import { durationLabel, formatRelativeDay, formatTime } from "@/lib/time";
-import { LOCATION_MODE_SHORT } from "@/lib/constants";
-import type { ProviderCard as Card } from "@/lib/search";
+import { LOCATION_MODE_SHORT, type ProviderCard as Card } from "@/lib/types";
 
 type Props = {
   card: Card;
@@ -20,6 +19,7 @@ type Props = {
 
 export function ProviderCard({ card, isFavorite = false, showFavorite = true }: Props) {
   const cover = card.portfolioSeeds[0] ?? `${card.providerId}-cover`;
+  const nextAvailable = card.nextAvailable ? new Date(card.nextAvailable) : null;
 
   return (
     <article className="card card-hover group relative flex flex-col overflow-hidden">
@@ -83,9 +83,9 @@ export function ProviderCard({ card, isFavorite = false, showFavorite = true }: 
                 {formatCents(card.fromPriceCents)}
               </p>
               <p className="mt-1.5 truncate text-xs font-medium">
-                {card.nextAvailable ? (
+                {nextAvailable ? (
                   <span className="text-success">
-                    Next: {formatRelativeDay(card.nextAvailable)} {formatTime(card.nextAvailable)}
+                    Next: {formatRelativeDay(nextAvailable)} {formatTime(nextAvailable)}
                   </span>
                 ) : (
                   <span className="text-ink-muted">No openings this week</span>

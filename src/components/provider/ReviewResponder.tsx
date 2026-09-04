@@ -19,7 +19,7 @@ export function ReviewResponder({ reviewId }: { reviewId: string }) {
     setLoading(true);
     setError("");
 
-    const result = await fetch(`/api/reviews/${reviewId}`, {
+    const result = await fetch(`/api/reviews/${reviewId}/response`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ response }),

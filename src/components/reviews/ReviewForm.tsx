@@ -9,19 +9,18 @@ import { StarPicker } from "@/components/ui/Stars";
 import { useToast } from "@/components/ui/Toast";
 
 type Props = {
-  appointmentId: string;
+  bookingId: string;
   providerName: string;
   /** Open by default when arriving from the "leave a review" notification. */
   defaultOpen?: boolean;
 };
 
-export function ReviewForm({ appointmentId, providerName, defaultOpen = false }: Props) {
+export function ReviewForm({ bookingId, providerName, defaultOpen = false }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(defaultOpen);
   const [rating, setRating] = useState(5);
   const [body, setBody] = useState("");
-  const [withPhoto, setWithPhoto] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,11 +33,9 @@ export function ReviewForm({ appointmentId, providerName, defaultOpen = false }:
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        appointmentId,
+        bookingId,
         rating,
         body,
-        // Real uploads land here; the demo attaches a deterministic seed.
-        imageSeeds: withPhoto ? [`${appointmentId}-review-photo`] : undefined,
       }),
     });
     const payload = await response.json();
@@ -84,15 +81,6 @@ export function ReviewForm({ appointmentId, providerName, defaultOpen = false }:
         placeholder="What was the experience like? Was the result what you expected?"
       />
 
-      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-ink-soft">
-        <input
-          type="checkbox"
-          checked={withPhoto}
-          onChange={(event) => setWithPhoto(event.target.checked)}
-          className="size-4 accent-accent"
-        />
-        Attach a photo of the result
-      </label>
 
       <div className="flex gap-2">
         <Button type="submit" loading={loading} disabled={body.trim().length < 5}>

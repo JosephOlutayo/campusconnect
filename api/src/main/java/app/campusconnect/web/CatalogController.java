@@ -12,7 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /** Public browsing: universities, categories and provider profiles. */
@@ -63,10 +65,24 @@ public class CatalogController {
                 providers.countByUniversityIdAndStatus(university.getId(), ProviderStatus.ACTIVE)));
     }
 
+    /**
+     * @param university optional campus slug — scopes the service counts to that
+     *                   campus so "7 services" means seven a student can book.
+     */
     @GetMapping("/categories")
-    public ApiResponse<List<CategoryDto>> listCategories() {
+    public ApiResponse<List<CategoryDto>> listCategories(
+            @RequestParam(required = false) String university) {
+        UUID universityId = (university == null || university.isBlank() || "all".equalsIgnoreCase(university))
+                ? null
+                : universities.findBySlug(university).map(University::getId).orElse(null);
+
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object[] row : services.countActiveByCategory(universityId, ProviderStatus.ACTIVE)) {
+            counts.put((UUID) row[0], (Long) row[1]);
+        }
+
         return ApiResponse.ok(categories.findByActiveTrueOrderBySortOrderAsc().stream()
-                .map(category -> CategoryDto.of(category, 0))
+                .map(category -> CategoryDto.of(category, counts.getOrDefault(category.getId(), 0L)))
                 .toList());
     }
 

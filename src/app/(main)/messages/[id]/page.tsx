@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { prisma } from "@/lib/prisma";
-import { requireUser } from "@/lib/auth";
-import { loadConversationFor, markThreadRead } from "@/lib/messaging";
+import { apiGetOptional, apiGetOrNull } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
+import type { ConversationHeader, Message } from "@/lib/types";
 
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
@@ -18,17 +18,12 @@ export default async function ConversationPage({ params }: PageProps<"/messages/
   const { id } = await params;
   const user = await requireUser();
 
-  const thread = await loadConversationFor(id, user.id);
-  if (!thread) notFound();
+  const { data: header } = await apiGetOptional<ConversationHeader>(`/api/conversations/${id}`);
+  if (!header) notFound();
 
-  const messages = await prisma.message.findMany({
-    where: { conversationId: id },
-    orderBy: { createdAt: "asc" },
-    take: 200,
-    select: { id: true, body: true, senderId: true, imageSeed: true, createdAt: true },
-  });
-
-  await markThreadRead(id, user.id);
+  const thread = await apiGetOrNull<{ messages: Message[]; viewerId: string }>(
+    `/api/conversations/${id}/messages`,
+  );
 
   return (
     <>
@@ -40,16 +35,12 @@ export default async function ConversationPage({ params }: PageProps<"/messages/
         >
           <Icon name="arrowLeft" size={20} />
         </Link>
-        <Avatar
-          seed={thread.counterpart.avatarSeed}
-          name={thread.counterpart.name}
-          size="md"
-        />
+        <Avatar seed={header.counterpartAvatarSeed} name={header.counterpartName} size="md" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-base font-bold text-ink">{thread.counterpart.name}</h1>
-          {thread.isCustomer ? (
+          <h1 className="truncate text-base font-bold text-ink">{header.counterpartName}</h1>
+          {header.viewerIsCustomer ? (
             <Link
-              href={`/providers/${thread.conversation.provider.id}`}
+              href={`/providers/${header.providerId}`}
               className="text-xs font-semibold text-accent hover:underline"
             >
               View profile
@@ -58,20 +49,17 @@ export default async function ConversationPage({ params }: PageProps<"/messages/
             <p className="text-xs text-ink-muted">Customer</p>
           )}
         </div>
-        <ReportButton targetType="USER" targetId={thread.counterpart.id} label="" />
+        <ReportButton targetType="USER" targetId={header.counterpartUserId} label="" />
       </div>
 
       <MessageThread
         conversationId={id}
         viewerId={user.id}
         counterpart={{
-          name: thread.counterpart.name,
-          avatarSeed: thread.counterpart.avatarSeed,
+          name: header.counterpartName,
+          avatarSeed: header.counterpartAvatarSeed,
         }}
-        initialMessages={messages.map((message) => ({
-          ...message,
-          createdAt: message.createdAt.toISOString(),
-        }))}
+        initialMessages={thread?.messages ?? []}
       />
     </>
   );

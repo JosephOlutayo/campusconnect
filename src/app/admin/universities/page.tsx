@@ -1,42 +1,36 @@
 import type { Metadata } from "next";
 
-import { prisma } from "@/lib/prisma";
+import { apiGet } from "@/lib/api";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { UniversityManager } from "@/components/admin/UniversityManager";
 
 export const metadata: Metadata = { title: "Universities" };
 export const dynamic = "force-dynamic";
 
+type UniversityRow = {
+  id: string;
+  name: string;
+  shortName: string;
+  slug: string;
+  city: string;
+  state: string;
+  color: string;
+  isActive: boolean;
+  providerCount: number;
+  userCount: number;
+  domains: string[];
+};
+
 export default async function AdminUniversitiesPage() {
-  const universities = await prisma.university.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      emailDomains: { select: { domain: true } },
-      _count: { select: { providers: true, users: true } },
-    },
-  });
+  const universities = await apiGet<UniversityRow[]>("/api/admin/universities");
 
   return (
     <>
       <PageHeader
         title="Universities"
-        subtitle="Every campus on the platform. The architecture scales from one to hundreds without a code change."
+        subtitle="Every campus on the platform. Adding one is data entry, not a deploy."
       />
-      <UniversityManager
-        universities={universities.map((university) => ({
-          id: university.id,
-          name: university.name,
-          shortName: university.shortName,
-          slug: university.slug,
-          city: university.city,
-          state: university.state,
-          color: university.color,
-          isActive: university.isActive,
-          providerCount: university._count.providers,
-          userCount: university._count.users,
-          domains: university.emailDomains.map((row) => row.domain),
-        }))}
-      />
+      <UniversityManager universities={universities} />
     </>
   );
 }

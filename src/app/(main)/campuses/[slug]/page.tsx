@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { prisma } from "@/lib/prisma";
-import { getSessionUser } from "@/lib/auth";
-import { getCampusActivity, getCampusStats, getFavoriteIds } from "@/lib/queries";
-import { searchProviders } from "@/lib/search";
+import { apiGet, apiGetOptional, apiGetOrNull, getSessionUser } from "@/lib/api";
+import type { CampusOverview, Category, SearchResult, University } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -21,46 +19,38 @@ export async function generateMetadata({
   params,
 }: PageProps<"/campuses/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const university = await prisma.university.findUnique({
-    where: { slug },
-    select: { name: true, shortName: true },
-  });
-  if (!university) return { title: "Campus not found" };
+  const { data } = await apiGetOptional<University>(`/api/universities/${slug}`);
+  if (!data) return { title: "Campus not found" };
   return {
-    title: `${university.shortName} services`,
-    description: `Book barbers, braiders, tutors and more at ${university.name}.`,
+    title: `${data.shortName} services`,
+    description: `Book barbers, braiders, tutors and more at ${data.name}.`,
   };
 }
 
 export default async function CampusPage({ params }: PageProps<"/campuses/[slug]">) {
   const { slug } = await params;
-  const university = await prisma.university.findUnique({ where: { slug } });
-  if (!university) notFound();
 
-  const [user, stats, activity, results] = await Promise.all([
+  const { data: university, notFound: missing } = await apiGetOptional<University>(
+    `/api/universities/${slug}`,
+  );
+  if (!university || missing) notFound();
+
+  const [user, overview, results, categories] = await Promise.all([
     getSessionUser(),
-    getCampusStats(university.id),
-    getCampusActivity(university.id),
-    searchProviders({ universityId: university.id, sort: "recommended", perPage: 12 }),
+    apiGet<CampusOverview>(`/api/stats/campus?university=${slug}`),
+    apiGet<SearchResult>(`/api/search?university=${university.id}&sort=recommended&perPage=12`),
+    apiGet<Category[]>(`/api/categories?university=${slug}`),
   ]);
 
-  const favoriteIds = await getFavoriteIds(user?.id);
+  const favoriteIds = user ? await apiGetOrNull<string[]>("/api/favorites") : null;
+  const saved = new Set(favoriteIds ?? []);
 
-  // Only the categories that actually have providers here.
-  const categoryIds = await prisma.service.findMany({
-    where: { isActive: true, provider: { universityId: university.id, status: "ACTIVE" } },
-    select: { categoryId: true },
-    distinct: ["categoryId"],
-  });
-  const categories = await prisma.category.findMany({
-    where: { id: { in: categoryIds.map((row) => row.categoryId) }, isActive: true },
-    orderBy: { sortOrder: "asc" },
-    include: { _count: { select: { services: { where: { isActive: true } } } } },
-  });
+  // Only the categories that actually have someone offering them here.
+  const availableCategories = categories.filter((category) => category.serviceCount > 0);
 
-  const bars = activity.ranked.slice(0, 4).map((entry, index) => ({
+  const bars = overview.topCategories.slice(0, 4).map((entry, index) => ({
     label: entry.name.split(" ")[0],
-    value: entry.count,
+    value: Number(entry.count),
     highlight: index === 0,
   }));
 
@@ -69,7 +59,7 @@ export default async function CampusPage({ params }: PageProps<"/campuses/[slug]
       <PageHeader
         eyebrow={`${university.city}, ${university.state}`}
         title={university.name}
-        subtitle={`${stats.providerCount} providers offering ${stats.serviceCount} services around campus.`}
+        subtitle={`${overview.providerCount} providers offering ${overview.serviceCount} services around campus.`}
         actions={<ButtonLink href={`/explore?university=${university.id}`}>Explore all</ButtonLink>}
       />
 
@@ -80,29 +70,29 @@ export default async function CampusPage({ params }: PageProps<"/campuses/[slug]
       <div className="mb-8 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <FeatureChart
           caption={`Booked at ${university.shortName} this month`}
-          headline={String(activity.total)}
+          headline={String(overview.bookingsThisMonth)}
           bars={bars.length > 0 ? bars : [{ label: "Quiet", value: 1, highlight: true }]}
           footer={
-            activity.ranked[0]
-              ? `${activity.ranked[0].icon} ${activity.ranked[0].name} is the busiest category`
+            overview.topCategories[0]
+              ? `${overview.topCategories[0].icon} ${overview.topCategories[0].name} is the busiest category`
               : "No bookings yet this month"
           }
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
-          <StatCard label="Providers" value={stats.providerCount} icon="users" />
+          <StatCard label="Providers" value={overview.providerCount} icon="users" />
           <StatCard
             label="Average rating"
-            value={stats.averageRating > 0 ? stats.averageRating.toFixed(1) : "—"}
+            value={overview.averageRating > 0 ? overview.averageRating.toFixed(1) : "—"}
             icon="star"
-            hint={`${stats.newThisWeek} joined in the last week`}
+            hint={`${overview.newProvidersThisWeek} joined in the last week`}
           />
         </div>
       </div>
 
-      {categories.length > 0 ? (
+      {availableCategories.length > 0 ? (
         <section className="mb-8">
           <SectionHeading title="Available here" />
-          <CategoryRail categories={categories} />
+          <CategoryRail categories={availableCategories} />
         </section>
       ) : null}
 
@@ -124,7 +114,7 @@ export default async function CampusPage({ params }: PageProps<"/campuses/[slug]
               <ProviderCard
                 key={card.providerId}
                 card={card}
-                isFavorite={favoriteIds.has(card.providerId)}
+                isFavorite={saved.has(card.providerId)}
               />
             ))}
           </div>

@@ -1,28 +1,33 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { requireUser } from "@/lib/auth";
-import { getCategories } from "@/lib/queries";
-import { getPlatformFeePercent } from "@/lib/settings";
+import { apiGet } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
+import type { Category } from "@/lib/types";
+
 import { PageHeader } from "@/components/shell/PageHeader";
 import { OnboardingForm } from "@/components/provider/OnboardingForm";
 
 export const metadata: Metadata = { title: "Become a provider" };
+export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage() {
   const user = await requireUser();
-  // Already set up — no reason to be here.
-  if (user.providerProfile) redirect("/provider");
-  if (!user.universityId) redirect("/profile");
 
-  const [categories, feePercent] = await Promise.all([getCategories(), getPlatformFeePercent()]);
+  // Already a provider? There is nothing to set up.
+  if (user.providerProfileId) redirect("/provider");
+
+  const [categories, settings] = await Promise.all([
+    apiGet<Category[]>("/api/categories"),
+    apiGet<{ platformFeePercent: number }>("/api/stats/settings"),
+  ]);
 
   return (
     <>
       <PageHeader
-        eyebrow="Set up in about two minutes"
+        eyebrow="Set up"
         title="Start offering services"
-        subtitle="Your prices, your hours, your rules. Students on your campus find you the moment you finish."
+        subtitle="Two minutes now, and students on your campus can book you today."
       />
       <OnboardingForm
         categories={categories.map((category) => ({
@@ -30,8 +35,8 @@ export default async function OnboardingPage() {
           name: category.name,
           icon: category.icon,
         }))}
-        universityName={user.university?.shortName ?? "campus"}
-        feePercent={feePercent}
+        universityName={user.universityName ?? "your campus"}
+        feePercent={settings.platformFeePercent}
       />
     </>
   );

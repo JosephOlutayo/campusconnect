@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireUser } from "@/lib/auth";
-import { listConversations } from "@/lib/messaging";
+import { apiGet } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
 import { formatTimeAgo } from "@/lib/time";
+import type { Conversation } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -14,12 +15,15 @@ export const metadata: Metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
 
 export default async function MessagesPage() {
-  const user = await requireUser();
-  const conversations = await listConversations(user.id);
+  await requireUser();
+  const conversations = await apiGet<Conversation[]>("/api/conversations");
 
   return (
     <>
-      <PageHeader title="Messages" subtitle="Everything stays in the app — no phone numbers shared." />
+      <PageHeader
+        title="Messages"
+        subtitle="Everything stays in the app — no phone numbers shared."
+      />
 
       {conversations.length === 0 ? (
         <EmptyState
@@ -36,16 +40,20 @@ export default async function MessagesPage() {
               href={`/messages/${conversation.id}`}
               className="flex items-center gap-3 p-4 transition-colors hover:bg-surface-muted"
             >
-              <Avatar seed={conversation.avatarSeed} name={conversation.name} size="md" />
+              <Avatar
+                seed={conversation.counterpartAvatarSeed}
+                name={conversation.counterpartName}
+                size="md"
+              />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-3">
                   <p
                     className={`truncate text-sm ${conversation.unread > 0 ? "font-bold text-ink" : "font-semibold text-ink"}`}
                   >
-                    {conversation.name}
+                    {conversation.counterpartName}
                   </p>
                   <span className="shrink-0 text-xs text-ink-muted">
-                    {formatTimeAgo(conversation.lastMessageAt)}
+                    {formatTimeAgo(new Date(conversation.lastMessageAt))}
                   </span>
                 </div>
                 <p

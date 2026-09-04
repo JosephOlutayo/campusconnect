@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 
-import { requireUser } from "@/lib/auth";
-import { getPastAppointments, getUpcomingAppointments } from "@/lib/queries";
-import { pendingReviews } from "@/lib/reviews";
+import { apiGet } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
+import { formatCents } from "@/lib/money";
+import type { Booking, MeSummary, PendingReview } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { AppointmentCard } from "@/components/appointments/AppointmentCard";
@@ -10,24 +11,18 @@ import { SectionHeading, EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { formatCents } from "@/lib/money";
-import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Appointments" };
 export const dynamic = "force-dynamic";
 
 export default async function AppointmentsPage() {
-  const user = await requireUser();
+  await requireUser();
 
-  const [upcoming, past, awaitingReview, spend] = await Promise.all([
-    getUpcomingAppointments(user.id, 20),
-    getPastAppointments(user.id, 20),
-    pendingReviews(user.id),
-    prisma.appointment.aggregate({
-      where: { customerId: user.id, status: "COMPLETED" },
-      _sum: { priceCents: true },
-      _count: { _all: true },
-    }),
+  const [upcoming, past, awaitingReview, summary] = await Promise.all([
+    apiGet<Booking[]>("/api/bookings/upcoming"),
+    apiGet<Booking[]>("/api/bookings/history"),
+    apiGet<PendingReview[]>("/api/reviews/pending"),
+    apiGet<MeSummary>("/api/stats/me"),
   ]);
 
   return (
@@ -40,10 +35,10 @@ export default async function AppointmentsPage() {
 
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <StatCard label="Upcoming" value={upcoming.length} icon="calendar" />
-        <StatCard label="Completed" value={spend._count._all} icon="check" />
+        <StatCard label="Completed" value={summary.completedBookings} icon="check" />
         <StatCard
           label="Spent on campus"
-          value={formatCents(spend._sum.priceCents ?? 0)}
+          value={formatCents(summary.spentCents)}
           icon="money"
         />
       </div>
@@ -55,20 +50,14 @@ export default async function AppointmentsPage() {
             subtitle="You completed these — a quick review helps the next student."
           />
           <div className="grid gap-3 sm:grid-cols-2">
-            {awaitingReview.map((appointment) => (
-              <div key={appointment.id} className="card flex items-center gap-3 p-4">
-                <Avatar
-                  seed={appointment.provider.user.avatarSeed}
-                  name={appointment.provider.businessName}
-                  size="md"
-                />
+            {awaitingReview.map((item) => (
+              <div key={item.bookingId} className="card flex items-center gap-3 p-4">
+                <Avatar seed={item.avatarSeed} name={item.providerName} size="md" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-ink">
-                    {appointment.provider.businessName}
-                  </p>
-                  <p className="truncate text-xs text-ink-muted">{appointment.service.title}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{item.providerName}</p>
+                  <p className="truncate text-xs text-ink-muted">{item.serviceTitle}</p>
                 </div>
-                <ButtonLink href={`/appointments/${appointment.id}?review=1`} size="sm">
+                <ButtonLink href={`/appointments/${item.bookingId}?review=1`} size="sm">
                   Review
                 </ButtonLink>
               </div>
@@ -88,8 +77,8 @@ export default async function AppointmentsPage() {
           />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {upcoming.map((appointment) => (
-              <AppointmentCard key={appointment.id} appointment={appointment} />
+            {upcoming.map((booking) => (
+              <AppointmentCard key={booking.id} booking={booking} />
             ))}
           </div>
         )}
@@ -101,11 +90,8 @@ export default async function AppointmentsPage() {
           <EmptyState compact icon="🕓" title="Nothing in your history yet" />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {past.map((appointment) => (
-              <AppointmentCard
-                key={appointment.id}
-                appointment={{ ...appointment, endAt: appointment.endAt }}
-              />
+            {past.map((booking) => (
+              <AppointmentCard key={booking.id} booking={booking} />
             ))}
           </div>
         )}

@@ -64,11 +64,7 @@ export function TimeOffManager({ blocks }: { blocks: Block[] }) {
   };
 
   const remove = async (id: string) => {
-    await fetch("/api/provider/time-off", {
-      method: "DELETE",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    await fetch(`/api/provider/time-off/${id}`, { method: "DELETE" });
     toast("Block removed.");
     router.refresh();
   };

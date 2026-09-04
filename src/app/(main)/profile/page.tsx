@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { requireUser } from "@/lib/auth";
-import { getUniversities } from "@/lib/queries";
-import { prisma } from "@/lib/prisma";
-import { formatDate } from "@/lib/time";
+import { apiGet } from "@/lib/api";
+import { requireUser } from "@/lib/guards";
+import type { MeSummary, University } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Avatar } from "@/components/ui/Avatar";
@@ -19,12 +18,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProfilePage() {
   const user = await requireUser();
-  const universities = await getUniversities();
 
-  const [completed, reviewsWritten, favorites] = await Promise.all([
-    prisma.appointment.count({ where: { customerId: user.id, status: "COMPLETED" } }),
-    prisma.review.count({ where: { authorId: user.id } }),
-    prisma.favorite.count({ where: { userId: user.id } }),
+  const [universities, summary] = await Promise.all([
+    apiGet<University[]>("/api/universities"),
+    apiGet<MeSummary>("/api/stats/me"),
   ]);
 
   return (
@@ -54,22 +51,20 @@ export default async function ProfilePage() {
             <p className="text-sm text-ink-muted">{user.email}</p>
 
             <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-              {user.studentVerifiedAt ? (
+              {user.studentVerified ? (
                 <Badge tone="success">
                   <Icon name="check" size={13} /> Verified student
                 </Badge>
               ) : (
                 <Badge tone="warning">Unverified</Badge>
               )}
-              {user.university ? <Badge tone="neutral">{user.university.shortName}</Badge> : null}
+              {user.universityShortName ? (
+                <Badge tone="neutral">{user.universityShortName}</Badge>
+              ) : null}
               {user.role === "ADMIN" ? <Badge tone="dark">Admin</Badge> : null}
             </div>
 
-            <p className="mt-3 text-xs text-ink-muted">
-              Member since {formatDate(user.createdAt, { month: "long", year: "numeric" })}
-            </p>
-
-            {!user.studentVerifiedAt ? (
+            {!user.studentVerified ? (
               <p className="mt-4 rounded-2xl bg-warning-soft px-3 py-2.5 text-left text-xs text-warning">
                 Sign up with your campus email address to get the verified-student badge. Providers
                 see it on every booking you make.
@@ -78,19 +73,25 @@ export default async function ProfilePage() {
           </section>
 
           <div className="grid gap-3">
-            <StatCard label="Completed bookings" value={completed} icon="check" />
-            <StatCard label="Reviews written" value={reviewsWritten} icon="star" href="/reviews" />
-            <StatCard label="Saved providers" value={favorites} icon="heart" href="/favorites" />
+            <StatCard label="Completed bookings" value={summary.completedBookings} icon="check" />
+            <StatCard
+              label="Reviews written"
+              value={summary.reviewsWritten}
+              icon="star"
+              href="/reviews"
+            />
+            <StatCard
+              label="Saved providers"
+              value={summary.savedProviders}
+              icon="heart"
+              href="/favorites"
+            />
           </div>
 
-          {user.providerProfile ? (
+          {user.providerProfileId ? (
             <section className="card p-5">
-              <h2 className="text-base font-semibold text-ink">
-                {user.providerProfile.businessName}
-              </h2>
-              <p className="mt-1 text-sm text-ink-muted">
-                Your provider listing is {user.providerProfile.status.toLowerCase()}.
-              </p>
+              <h2 className="text-base font-semibold text-ink">{user.providerBusinessName}</h2>
+              <p className="mt-1 text-sm text-ink-muted">Your provider listing.</p>
               <ButtonLink href="/provider" size="sm" className="mt-3 w-full">
                 Provider dashboard
               </ButtonLink>

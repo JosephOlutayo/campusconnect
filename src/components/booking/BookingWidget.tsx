@@ -9,10 +9,7 @@ import { Modal } from "@/components/ui/Modal";
 import { FormError } from "@/components/ui/Form";
 import { useToast } from "@/components/ui/Toast";
 import { formatCents } from "@/lib/money";
-import {
-  LOCATION_MODE_LABELS,
-  type LocationMode,
-} from "@/lib/constants";
+import { LOCATION_MODE_LABELS, type LocationMode, type ServiceOffering } from "@/lib/types";
 import {
   addDays,
   durationLabel,
@@ -25,20 +22,10 @@ import {
   type DateKey,
 } from "@/lib/time";
 
-export type BookableService = {
-  id: string;
-  title: string;
-  description: string;
-  priceCents: number;
-  durationMinutes: number;
-  categoryName: string;
-  categoryIcon: string;
-  locationModes: LocationMode[];
-};
 
 type Props = {
   providerName: string;
-  services: BookableService[];
+  services: ServiceOffering[];
   autoConfirm: boolean;
   cancellationPolicy: string;
   locationLabel: string;

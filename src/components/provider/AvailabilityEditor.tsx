@@ -8,6 +8,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { FormError } from "@/components/ui/Form";
 import { formatMinutes, WEEKDAY_NAMES } from "@/lib/time";
+import { weekdayNameFromIndex } from "@/lib/constants";
 
 export type Rule = { weekday: number; startMinute: number; endMinute: number };
 
@@ -83,10 +84,16 @@ export function AvailabilityEditor({ initialRules }: Props) {
       return;
     }
 
+    const windows = rules.map((rule) => ({
+      dayOfWeek: weekdayNameFromIndex(rule.weekday),
+      startMinute: rule.startMinute,
+      endMinute: rule.endMinute,
+    }));
+
     const response = await fetch("/api/provider/availability", {
       method: "PUT",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ rules }),
+      body: JSON.stringify({ windows }),
     });
     const payload = await response.json();
 

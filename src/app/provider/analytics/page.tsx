@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 
-import { requireProvider } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { getProviderStats, getServicePerformance, getWeeklyBookings } from "@/lib/providerStats";
+import { apiGet } from "@/lib/api";
+import { requireProvider } from "@/lib/guards";
 import { formatCents } from "@/lib/money";
-import { addDays, startOfDay, WEEKDAY_NAMES } from "@/lib/time";
+import { WEEKDAY_NAMES } from "@/lib/time";
+import type { Booking, ProviderStats, ServiceOffering } from "@/lib/types";
 
 import { PageHeader } from "@/components/shell/PageHeader";
 import { FeatureChart } from "@/components/dashboard/FeatureChart";
@@ -15,89 +15,92 @@ export const metadata: Metadata = { title: "Analytics" };
 export const dynamic = "force-dynamic";
 
 export default async function AnalyticsPage() {
-  const { providerId } = await requireProvider();
+  await requireProvider();
 
-  const [stats, weekly, services, last90] = await Promise.all([
-    getProviderStats(providerId),
-    getWeeklyBookings(providerId, 6),
-    getServicePerformance(providerId),
-    prisma.appointment.findMany({
-      where: { providerId, startAt: { gte: addDays(startOfDay(new Date()), -90) } },
-      select: { startAt: true, status: true },
-    }),
+  const [stats, bookings, services] = await Promise.all([
+    apiGet<ProviderStats>("/api/provider/stats"),
+    apiGet<Booking[]>("/api/provider/bookings"),
+    apiGet<ServiceOffering[]>("/api/provider/services"),
   ]);
 
-  // Which weekday and hour actually convert — useful for deciding where to
-  // open more hours.
-  const byWeekday = WEEKDAY_NAMES.map((name, index) => ({
-    name,
-    count: last90.filter(
-      (appointment) => appointment.startAt.getDay() === index && appointment.status !== "CANCELLED",
-    ).length,
-  }));
-  const busiestDay = [...byWeekday].sort((a, b) => b.count - a.count)[0];
+  const completed = bookings.filter((booking) => booking.status === "COMPLETED");
+  const cancelled = bookings.filter(
+    (booking) => booking.status === "CANCELLED" || booking.status === "NO_SHOW",
+  );
 
-  const hourBuckets = [
-    { label: "Morning", from: 6, to: 12 },
-    { label: "Afternoon", from: 12, to: 17 },
-    { label: "Evening", from: 17, to: 22 },
-  ].map((bucket) => ({
-    ...bucket,
-    count: last90.filter((appointment) => {
-      const hour = appointment.startAt.getHours();
-      return hour >= bucket.from && hour < bucket.to && appointment.status !== "CANCELLED";
-    }).length,
-  }));
+  // Which weekday actually earns — useful for deciding where to open more hours.
+  const byWeekday = Array.from({ length: 7 }, () => ({ count: 0, cents: 0 }));
+  for (const booking of completed) {
+    const day = new Date(booking.startAt).getDay();
+    byWeekday[day].count += 1;
+    byWeekday[day].cents += booking.providerPayoutCents;
+  }
+  const busiestDay = byWeekday.reduce(
+    (best, entry, index) => (entry.count > byWeekday[best].count ? index : best),
+    0,
+  );
 
-  const total = last90.filter((appointment) => appointment.status !== "CANCELLED").length;
-  const cancelled = last90.filter((appointment) => appointment.status === "CANCELLED").length;
-  const noShows = last90.filter((appointment) => appointment.status === "NO_SHOW").length;
-  const cancelRate = last90.length > 0 ? Math.round((cancelled / last90.length) * 100) : 0;
+  // Revenue per service, so a low-price high-volume item is visible as such.
+  const perService = services
+    .map((service) => {
+      const rows = completed.filter((booking) => booking.serviceId === service.id);
+      return {
+        id: service.id,
+        title: service.title,
+        icon: service.categoryIcon,
+        bookings: rows.length,
+        cents: rows.reduce((sum, booking) => sum + booking.providerPayoutCents, 0),
+      };
+    })
+    .sort((a, b) => b.cents - a.cents);
 
-  const topService = services[0];
+  const totalCompleted = completed.length + cancelled.length;
+  const completionRate =
+    totalCompleted === 0 ? 0 : Math.round((completed.length / totalCompleted) * 100);
+
+  const averageBooking =
+    completed.length === 0
+      ? 0
+      : Math.round(completed.reduce((sum, b) => sum + b.priceCents, 0) / completed.length);
 
   return (
     <>
       <PageHeader
         title="Analytics"
-        subtitle="The last 90 days of your business, in the numbers that change what you do next."
+        subtitle="Where your bookings actually come from, and which services carry the business."
       />
 
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <FeatureChart
-          caption="Bookings per week"
-          headline={String(total)}
-          bars={weekly.map((week, index) => ({
+          caption="Earnings over the last four weeks"
+          headline={formatCents(stats.earningsByWeek.reduce((sum, w) => sum + w.amountCents, 0))}
+          bars={stats.earningsByWeek.map((week, index) => ({
             label: week.label,
-            value: week.count,
-            highlight: index === weekly.length - 1,
+            value: Math.round(week.amountCents / 100),
+            highlight: index === stats.earningsByWeek.length - 1,
           }))}
-          footer={
-            busiestDay && busiestDay.count > 0
-              ? `${busiestDay.name} is your busiest day — ${busiestDay.count} bookings in 90 days`
-              : "Not enough history yet"
-          }
+          footer={`Busiest day: ${WEEKDAY_NAMES[busiestDay]}`}
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
           <StatCard
-            label="Cancellation rate"
-            value={`${cancelRate}%`}
-            icon="ban"
-            hint={`${cancelled} cancelled, ${noShows} no-show`}
+            label="Completion rate"
+            value={`${completionRate}%`}
+            icon="check"
+            hint={`${cancelled.length} cancelled or no-show`}
           />
           <StatCard
-            label="Earned all time"
-            value={formatCents(stats.earnedAllTimeCents)}
+            label="Average booking"
+            value={formatCents(averageBooking)}
             icon="money"
-            hint={`${formatCents(stats.feesAllTimeCents)} in platform fees`}
+            hint="Across completed appointments"
           />
         </div>
       </div>
 
-      <section className="mb-6">
+      <section className="mb-8">
         <SectionHeading
-          title="What sells"
-          subtitle="Completed bookings and take-home earnings by service"
+          title="Revenue by service"
+          subtitle="What each service has actually put in your pocket"
         />
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
@@ -105,89 +108,52 @@ export default async function AnalyticsPage() {
               <thead className="border-b border-line bg-surface-muted text-left">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-ink-muted">Service</th>
-                  <th className="px-4 py-3 font-semibold text-ink-muted">Price</th>
-                  <th className="px-4 py-3 font-semibold text-ink-muted">Completed</th>
+                  <th className="px-4 py-3 text-right font-semibold text-ink-muted">Completed</th>
                   <th className="px-4 py-3 text-right font-semibold text-ink-muted">Earned</th>
+                  <th className="px-4 py-3 font-semibold text-ink-muted">Share</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {services.map((service) => (
-                  <tr key={service.id}>
-                    <td className="px-4 py-3">
-                      <span className="font-medium text-ink">{service.title}</span>
-                      {!service.isActive ? (
-                        <span className="ml-2 text-xs text-ink-faint">(paused)</span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3 text-ink-soft">{formatCents(service.priceCents)}</td>
-                    <td className="px-4 py-3 text-ink-soft">{service.completed}</td>
-                    <td className="px-4 py-3 text-right font-bold text-ink">
-                      {formatCents(service.earnedCents)}
-                    </td>
-                  </tr>
-                ))}
+                {perService.map((row) => {
+                  const top = perService[0]?.cents || 1;
+                  return (
+                    <tr key={row.id}>
+                      <td className="px-4 py-3 font-medium text-ink">
+                        {row.icon} {row.title}
+                      </td>
+                      <td className="px-4 py-3 text-right text-ink-soft">{row.bookings}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-ink">
+                        {formatCents(row.cents)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="block h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">
+                          <span
+                            className="block h-full rounded-full bg-accent"
+                            style={{ width: `${Math.round((row.cents / top) * 100)}%` }}
+                          />
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </div>
-        {topService && topService.earnedCents > 0 ? (
-          <p className="mt-3 rounded-2xl bg-accent-soft px-4 py-3 text-sm text-accent">
-            <strong>{topService.title}</strong> earns you the most. If you want more hours to pay
-            off, open them where this one gets booked.
-          </p>
-        ) : null}
       </section>
 
       <section>
-        <SectionHeading title="When people book" subtitle="Last 90 days" />
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="card p-5">
-            <h3 className="mb-4 text-sm font-semibold text-ink">By day</h3>
-            <div className="space-y-2">
-              {byWeekday.map((day) => {
-                const max = Math.max(1, ...byWeekday.map((entry) => entry.count));
-                return (
-                  <div key={day.name} className="flex items-center gap-3">
-                    <span className="w-9 text-xs font-medium text-ink-muted">
-                      {day.name.slice(0, 3)}
-                    </span>
-                    <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                      <span
-                        className="block h-full rounded-full bg-accent"
-                        style={{ width: `${(day.count / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="w-6 text-right text-xs font-semibold text-ink">
-                      {day.count}
-                    </span>
-                  </div>
-                );
-              })}
+        <SectionHeading title="By day of week" subtitle="Completed appointments and earnings" />
+        <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-7">
+          {byWeekday.map((entry, index) => (
+            <div key={index} className="card p-4 text-center">
+              <p className="text-xs font-semibold text-ink-muted">
+                {WEEKDAY_NAMES[index].slice(0, 3)}
+              </p>
+              <p className="mt-1 text-xl font-bold text-ink">{entry.count}</p>
+              <p className="mt-0.5 text-xs text-ink-muted">{formatCents(entry.cents)}</p>
             </div>
-          </div>
-
-          <div className="card p-5">
-            <h3 className="mb-4 text-sm font-semibold text-ink">By time of day</h3>
-            <div className="space-y-2">
-              {hourBuckets.map((bucket) => {
-                const max = Math.max(1, ...hourBuckets.map((entry) => entry.count));
-                return (
-                  <div key={bucket.label} className="flex items-center gap-3">
-                    <span className="w-20 text-xs font-medium text-ink-muted">{bucket.label}</span>
-                    <span className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-surface-sunken">
-                      <span
-                        className="block h-full rounded-full bg-feature"
-                        style={{ width: `${(bucket.count / max) * 100}%` }}
-                      />
-                    </span>
-                    <span className="w-6 text-right text-xs font-semibold text-ink">
-                      {bucket.count}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          ))}
         </div>
       </section>
     </>

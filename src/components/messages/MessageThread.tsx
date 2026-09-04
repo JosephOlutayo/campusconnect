@@ -1,19 +1,14 @@
 "use client";
 
+import { Client, type IMessage } from "@stomp/stompjs";
+import SockJS from "sockjs-client";
 import { useEffect, useRef, useState } from "react";
 
 import { Avatar } from "@/components/ui/Avatar";
 import { Icon } from "@/components/ui/Icon";
 import { SeedImage } from "@/components/ui/SeedImage";
 import { formatTimeAgo } from "@/lib/time";
-
-type Message = {
-  id: string;
-  body: string;
-  senderId: string;
-  imageSeed: string | null;
-  createdAt: string;
-};
+import type { Message } from "@/lib/types";
 
 type Props = {
   conversationId: string;
@@ -22,13 +17,23 @@ type Props = {
   initialMessages: Message[];
 };
 
+/** What the server pushes over /topic/conversations/{id}. */
+type Broadcast = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+};
+
 /**
- * Polls for new messages while the tab is visible.
- *
- * Polling is the honest MVP answer: no WebSocket infrastructure to run, and at
- * campus scale a 6-second poll is cheap. Swapping in SSE or Pusher later means
- * replacing this one effect.
+ * The WebSocket connects straight to the Java server rather than through the
+ * Next.js proxy — proxying a WebSocket upgrade through a route handler is not
+ * something Next.js does, and the STOMP endpoint allows this origin by CORS.
  */
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "http://localhost:8080/ws";
+
 export function MessageThread({
   conversationId,
   viewerId,
@@ -38,42 +43,61 @@ export function MessageThread({
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [live, setLive] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  /**
+   * Live updates over STOMP.
+   *
+   * Messages still POST over REST — that is the path that persists them and
+   * returns errors a user can act on. The socket is purely for hearing about
+   * the *other* person's messages without polling. If it fails to connect the
+   * thread degrades to "refresh to see new messages" rather than breaking.
+   */
   useEffect(() => {
-    let cancelled = false;
+    const client = new Client({
+      webSocketFactory: () => new SockJS(WS_URL),
+      reconnectDelay: 4000,
+      onConnect: () => {
+        setLive(true);
+        client.subscribe(`/topic/conversations/${conversationId}`, (frame: IMessage) => {
+          try {
+            const incoming = JSON.parse(frame.body) as Broadcast;
+            setMessages((current) => {
+              // The sender already appended their own message optimistically.
+              if (current.some((message) => message.id === incoming.id)) return current;
+              return [
+                ...current,
+                {
+                  id: incoming.id,
+                  conversationId: incoming.conversationId,
+                  senderId: incoming.senderId,
+                  senderName: incoming.senderName,
+                  body: incoming.body,
+                  imageSeed: null,
+                  createdAt: incoming.createdAt,
+                  readAt: null,
+                },
+              ];
+            });
+          } catch {
+            /* malformed frame — ignore rather than tear down the socket */
+          }
+        });
+      },
+      onWebSocketClose: () => setLive(false),
+      onStompError: () => setLive(false),
+    });
 
-    const poll = async () => {
-      if (document.hidden) return;
-      const last = messages[messages.length - 1];
-      const query = last ? `?after=${encodeURIComponent(last.createdAt)}` : "";
-      try {
-        const response = await fetch(`/api/conversations/${conversationId}/messages${query}`);
-        const payload = await response.json();
-        if (!cancelled && payload.ok && payload.data.messages.length > 0) {
-          setMessages((current) => {
-            const seen = new Set(current.map((message) => message.id));
-            const fresh = (payload.data.messages as Message[]).filter(
-              (message) => !seen.has(message.id),
-            );
-            return fresh.length > 0 ? [...current, ...fresh] : current;
-          });
-        }
-      } catch {
-        /* offline — try again on the next tick */
-      }
-    };
-
-    const timer = setInterval(poll, 6000);
+    client.activate();
     return () => {
-      cancelled = true;
-      clearInterval(timer);
+      void client.deactivate();
     };
-  }, [conversationId, messages]);
+  }, [conversationId]);
 
   const send = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -97,14 +121,30 @@ export function MessageThread({
       return;
     }
 
-    setMessages((current) => [
-      ...current,
-      { ...payload.data.message, createdAt: payload.data.message.createdAt },
-    ]);
+    setMessages((current) =>
+      current.some((message) => message.id === payload.data.id)
+        ? current
+        : [...current, payload.data as Message],
+    );
   };
 
   return (
     <div className="card flex h-[calc(100dvh-13rem)] flex-col overflow-hidden md:h-[calc(100dvh-11rem)]">
+      <div className="flex items-center justify-end border-b border-line px-4 py-1.5">
+        <span
+          className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
+            live ? "text-success" : "text-ink-faint"
+          }`}
+          title={live ? "Live updates on" : "Reconnecting — refresh to see new messages"}
+        >
+          <span
+            className={`size-1.5 rounded-full ${live ? "bg-success" : "bg-ink-faint"}`}
+            aria-hidden
+          />
+          {live ? "Live" : "Offline"}
+        </span>
+      </div>
+
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-surface-muted p-4">
         {messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-ink-muted">
@@ -119,7 +159,7 @@ export function MessageThread({
               {!mine ? (
                 <Avatar seed={counterpart.avatarSeed} name={counterpart.name} size="xs" />
               ) : null}
-              <div className={`max-w-[78%] ${mine ? "items-end" : "items-start"} flex flex-col`}>
+              <div className={`flex max-w-[78%] flex-col ${mine ? "items-end" : "items-start"}`}>
                 <div
                   className={`rounded-2xl px-3.5 py-2.5 text-sm ${
                     mine
@@ -158,7 +198,7 @@ export function MessageThread({
             // already has muscle memory for.
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
-              send(event as unknown as React.FormEvent);
+              void send(event as unknown as React.FormEvent);
             }
           }}
           rows={1}

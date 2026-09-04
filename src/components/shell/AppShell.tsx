@@ -1,12 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { getSessionUser } from "@/lib/auth";
-import { unreadMessageCount, unreadNotificationCount } from "@/lib/notifications";
-import { prisma } from "@/lib/prisma";
+import { getSessionUser, apiGetOrNull } from "@/lib/api";
 import { APP_NAME } from "@/lib/constants";
-import { getPlatformFeePercent } from "@/lib/settings";
 import { mobileItems, navFor } from "@/lib/nav";
+import type { MeSummary } from "@/lib/types";
 import { Icon } from "@/components/ui/Icon";
 import { ButtonLink } from "@/components/ui/Button";
 import { AccountMenu } from "@/components/shell/AccountMenu";
@@ -22,21 +20,13 @@ type Props = {
 export async function AppShell({ children, area = "app" }: Props) {
   const user = await getSessionUser();
 
-  const counts: BadgeCounts = { messages: 0, notifications: 0, pending: 0 };
-  if (user) {
-    const [messages, notifications, pending] = await Promise.all([
-      unreadMessageCount(user.id),
-      unreadNotificationCount(user.id),
-      user.providerProfile
-        ? prisma.appointment.count({
-            where: { providerId: user.providerProfile.id, status: "PENDING" },
-          })
-        : Promise.resolve(0),
-    ]);
-    counts.messages = messages;
-    counts.notifications = notifications;
-    counts.pending = pending;
-  }
+  // One call covers every badge in the sidebar and tab bar.
+  const summary = user ? await apiGetOrNull<MeSummary>("/api/stats/me") : null;
+  const counts: BadgeCounts = {
+    messages: summary?.unreadMessages ?? 0,
+    notifications: summary?.unreadNotifications ?? 0,
+    pending: summary?.pendingProviderRequests ?? 0,
+  };
 
   const groups = navFor(user?.role ?? null, area);
   const tabs = mobileItems(groups);
@@ -59,8 +49,8 @@ export async function AppShell({ children, area = "app" }: Props) {
               email: user.email,
               avatarSeed: user.avatarSeed,
               role: user.role,
-              universityName: user.university?.shortName ?? null,
-              hasProviderProfile: Boolean(user.providerProfile),
+              universityName: user.universityShortName ?? null,
+              hasProviderProfile: Boolean(user.providerProfileId),
             }}
           />
         ) : (
@@ -136,10 +126,17 @@ function Logo() {
 
 function Brand({ area }: { area: "app" | "provider" | "admin" }) {
   const subtitle =
-    area === "provider" ? "Provider workspace" : area === "admin" ? "Admin console" : "Campus services";
+    area === "provider"
+      ? "Provider workspace"
+      : area === "admin"
+        ? "Admin console"
+        : "Campus services";
 
   return (
-    <Link href={area === "provider" ? "/provider" : area === "admin" ? "/admin" : "/"} className="flex items-center gap-3">
+    <Link
+      href={area === "provider" ? "/provider" : area === "admin" ? "/admin" : "/"}
+      className="flex items-center gap-3"
+    >
       <Logo />
       <span className="min-w-0">
         <span className="block truncate text-[15px] font-bold tracking-tight text-ink">
@@ -151,7 +148,7 @@ function Brand({ area }: { area: "app" | "provider" | "admin" }) {
   );
 }
 
-async function PromoCard({
+function PromoCard({
   user,
   area,
 }: {
@@ -171,25 +168,24 @@ async function PromoCard({
     );
   }
 
-  if (user.providerProfile && area === "app") {
+  if (user.providerProfileId && area === "app") {
     return (
       <Link
         href="/provider"
         className="block rounded-2xl bg-feature p-4 text-white transition-transform hover:-translate-y-0.5"
       >
-        <p className="text-sm font-semibold">{user.providerProfile.businessName}</p>
+        <p className="text-sm font-semibold">{user.providerBusinessName}</p>
         <p className="mt-1 text-xs text-white/70">Open your provider dashboard →</p>
       </Link>
     );
   }
 
-  if (!user.providerProfile) {
-    const feePercent = await getPlatformFeePercent();
+  if (!user.providerProfileId) {
     return (
       <div className="rounded-2xl bg-feature p-4 text-white">
         <p className="text-sm font-semibold">Turn your skill into income</p>
         <p className="mt-1 mb-3 text-xs text-white/70">
-          Set your prices, your hours, your rules. Keep {100 - feePercent}% of every booking.
+          Set your prices, your hours, your rules.
         </p>
         <Link
           href="/provider/onboarding"

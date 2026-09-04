@@ -342,6 +342,80 @@ public class AdminController {
                 .toList());
     }
 
+    /** Admin listing includes hidden categories, which the public one does not. */
+    @GetMapping("/categories")
+    public ApiResponse<List<Map<String, Object>>> listCategories() {
+        Map<UUID, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : services.countActiveByCategory(null, ProviderStatus.ACTIVE)) {
+            counts.put((UUID) row[0], (Long) row[1]);
+        }
+        return ApiResponse.ok(categories.findAll().stream()
+                .sorted(Comparator.comparingInt(Category::getSortOrder))
+                .map(category -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", category.getId().toString());
+                    row.put("name", category.getName());
+                    row.put("slug", category.getSlug());
+                    row.put("icon", category.getIcon());
+                    row.put("description", category.getDescription());
+                    row.put("keywords", String.join(",", category.getKeywords()));
+                    row.put("color", category.getColor());
+                    row.put("isActive", category.isActive());
+                    row.put("serviceCount", counts.getOrDefault(category.getId(), 0L));
+                    return row;
+                })
+                .toList());
+    }
+
+    @PatchMapping("/categories")
+    @Transactional
+    public ApiResponse<Map<String, Boolean>> toggleCategory(@RequestBody Map<String, Object> body) {
+        UUID id = UUID.fromString(String.valueOf(body.get("id")));
+        Category category = categories.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Category not found."));
+        if (body.get("isActive") != null) {
+            category.setActive(Boolean.parseBoolean(String.valueOf(body.get("isActive"))));
+        }
+        categories.save(category);
+        return ApiResponse.ok(Map.of("updated", true));
+    }
+
+    @GetMapping("/universities")
+    public ApiResponse<List<Map<String, Object>>> listUniversities() {
+        return ApiResponse.ok(universities.findAll().stream()
+                .sorted(Comparator.comparing(University::getName))
+                .map(university -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", university.getId().toString());
+                    row.put("name", university.getName());
+                    row.put("shortName", university.getShortName());
+                    row.put("slug", university.getSlug());
+                    row.put("city", university.getCity());
+                    row.put("state", university.getState());
+                    row.put("color", university.getColor());
+                    row.put("isActive", university.isActive());
+                    row.put("domains", List.copyOf(university.getEmailDomains()));
+                    row.put("providerCount",
+                            providers.countByUniversityIdAndStatus(university.getId(), ProviderStatus.ACTIVE));
+                    row.put("userCount", 0);
+                    return row;
+                })
+                .toList());
+    }
+
+    @PatchMapping("/universities")
+    @Transactional
+    public ApiResponse<Map<String, Boolean>> toggleUniversity(@RequestBody Map<String, Object> body) {
+        UUID id = UUID.fromString(String.valueOf(body.get("id")));
+        University university = universities.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Campus not found."));
+        if (body.get("isActive") != null) {
+            university.setActive(Boolean.parseBoolean(String.valueOf(body.get("isActive"))));
+        }
+        universities.save(university);
+        return ApiResponse.ok(Map.of("updated", true));
+    }
+
     @PostMapping("/categories")
     @Transactional
     public ApiResponse<Map<String, String>> addCategory(@Valid @RequestBody CategoryRequest request) {
