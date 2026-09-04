@@ -99,20 +99,31 @@ export function SignupForm({ universities }: { universities: University[] }) {
           placeholder="you@university.edu"
           hint="Use your campus email to get the verified student badge."
         />
-        <Select
-          label="University"
-          name="universityId"
-          required
-          value={form.universityId}
-          onChange={update("universityId")}
-        >
-          <option value="">Select your university</option>
-          {universities.map((university) => (
-            <option key={university.id} value={university.id}>
-              {university.name}
-            </option>
-          ))}
-        </Select>
+        {universities.length === 0 ? (
+          /* Before an admin adds a campus the dropdown is empty and the form
+             cannot be submitted, with nothing on screen explaining why. */
+          <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-4 text-sm text-stone-600">
+            <p className="font-medium text-stone-800">No campuses are set up yet</p>
+            <p className="mt-1">
+              Sign-ups open once a campus has been added. Check back shortly.
+            </p>
+          </div>
+        ) : (
+          <Select
+            label="University"
+            name="universityId"
+            required
+            value={form.universityId}
+            onChange={update("universityId")}
+          >
+            <option value="">Select your university</option>
+            {universities.map((university) => (
+              <option key={university.id} value={university.id}>
+                {university.name}
+              </option>
+            ))}
+          </Select>
+        )}
         <TextField
           label="Password"
           name="password"
@@ -125,7 +136,13 @@ export function SignupForm({ universities }: { universities: University[] }) {
           placeholder="At least 8 characters"
         />
 
-        <Button type="submit" loading={loading} size="lg" className="w-full">
+        <Button
+          type="submit"
+          loading={loading}
+          size="lg"
+          className="w-full"
+          disabled={universities.length === 0}
+        >
           {intent === "PROVIDER" ? "Continue to set up your business" : "Create account"}
         </Button>
       </form>

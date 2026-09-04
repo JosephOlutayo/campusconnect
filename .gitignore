@@ -51,3 +51,6 @@ next-env.d.ts
 api/target/
 api/data/
 *.class
+
+# Local database dumps — never commit data
+backups/
