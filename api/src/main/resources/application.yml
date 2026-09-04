@@ -54,6 +54,13 @@ campusconnect:
   seed: ${SEED_DEMO_DATA:true}
   # Session cookie Secure flag. Must be true anywhere served over HTTPS.
   secure-cookies: ${SECURE_COOKIES:false}
+  # The first administrator, created only when no admin exists yet. Without
+  # this a fresh production database is a deadlock: adding a university needs
+  # an admin, and signing up needs a university.
+  bootstrap:
+    admin-email: ${ADMIN_EMAIL:}
+    admin-password: ${ADMIN_PASSWORD:}
+    admin-name: ${ADMIN_NAME:Administrator}
 
 # Health only. Nothing else from actuator is exposed — /env and /beans would
 # leak configuration including connection strings.

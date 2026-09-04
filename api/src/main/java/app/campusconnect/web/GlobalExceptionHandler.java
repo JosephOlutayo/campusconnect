@@ -5,7 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -67,6 +69,25 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadParam(MethodArgumentTypeMismatchException ex) {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.fail("Invalid value for '" + ex.getName() + "'."));
+    }
+
+    /**
+     * A body Jackson cannot read is the caller's mistake too. This shows up
+     * when a field's shape is wrong — sending a JSON array where the API wants
+     * a comma-separated string, say — and a 500 there sends people hunting for
+     * a server fault that does not exist.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(HttpMessageNotReadableException ex) {
+        String field = "";
+        if (ex.getCause() instanceof MismatchedInputException mie && !mie.getPath().isEmpty()) {
+            String name = mie.getPath().get(mie.getPath().size() - 1).getFieldName();
+            if (name != null) {
+                field = " Check the '" + name + "' field.";
+            }
+        }
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.fail("That request body could not be read." + field));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

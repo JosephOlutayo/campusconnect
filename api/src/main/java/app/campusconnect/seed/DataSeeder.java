@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +31,7 @@ import java.util.*;
  *
  * Runs only when the database is empty, or when started with --seed=reset.
  */
+@Order(1) // before BootstrapRunner, which only fills in what this leaves out
 @Component
 public class DataSeeder implements ApplicationRunner {
 
@@ -221,33 +223,8 @@ public class DataSeeder implements ApplicationRunner {
     }
 
     private Map<String, Category> seedCategories() {
-        Object[][] rows = {
-                {"Barbering", "barbering", "💈", "#2563EB", "Cuts, fades, line-ups and beard work.", "barber,haircut,fade,taper,lineup,cut,trim,beard"},
-                {"Braiding", "braiding", "🪢", "#DB2777", "Box braids, knotless, cornrows and twists.", "braids,braider,knotless,box braids,cornrows,twists"},
-                {"Hair Styling", "hair-styling", "💇", "#9333EA", "Silk press, colour, installs and styling.", "hair,hairdresser,stylist,silk press,color,wig,install"},
-                {"Nails", "nails", "💅", "#F43F5E", "Acrylics, gel, manicures and nail art.", "nails,nail tech,acrylic,gel,manicure,pedicure,nail art"},
-                {"Makeup", "makeup", "💄", "#EC4899", "Event glam, natural beat and lessons.", "makeup,mua,glam,beat,formal,prom,bridal"},
-                {"Lashes & Brows", "lashes-brows", "👁️", "#A855F7", "Extensions, lifts, tints and threading.", "lashes,lash tech,extensions,brows,eyebrows,threading,tint"},
-                {"Tattoo & Piercing", "tattoo", "🖋️", "#4F46E5", "Small tattoos, flash and piercings.", "tattoo,tattoos,ink,piercing,flash"},
-                {"Photography", "photography", "📷", "#0EA5E9", "Grad photos, portraits and events.", "photo,photography,photographer,grad photos,portraits,headshots"},
-                {"Videography", "videography", "🎬", "#0891B2", "Event films, reels and content days.", "video,videography,videographer,film,reels,content"},
-                {"Tutoring", "tutoring", "📚", "#16A34A", "Course-specific help from students who aced it.", "tutor,tutoring,math,calculus,statistics,chemistry,physics,study,exam"},
-                {"Fitness", "fitness", "🏋️", "#EA580C", "Personal training and programming.", "fitness,trainer,personal trainer,gym,workout,lifting,coach"},
-                {"Car Care", "car-care", "🚗", "#0F766E", "Detailing, washes and interior resets.", "car,detailing,detail,wash,car wash,auto,interior"},
-                {"Tailoring", "tailoring", "🧵", "#B45309", "Alterations, hemming and custom pieces.", "tailor,tailoring,alterations,hem,sewing,seamstress,suit"},
-                {"DJ & Events", "dj-events", "🎧", "#7C3AED", "Parties, formals and campus events.", "dj,music,party,event,mix,sound,formal"},
-                {"Cleaning", "cleaning", "🧽", "#0284C7", "Dorm and apartment deep cleans.", "cleaning,cleaner,deep clean,dorm,apartment,move out"},
-                {"Design & Digital", "design", "🎨", "#6366F1", "Logos, flyers, decks and web work.", "design,graphic design,designer,logo,flyer,branding,website,resume"},
-        };
-        Map<String, Category> map = new LinkedHashMap<>();
-        int order = 0;
-        for (Object[] row : rows) {
-            Set<String> keywords = new LinkedHashSet<>(Arrays.asList(((String) row[5]).split(",")));
-            Category category = categories.save(new Category((String) row[0], (String) row[1],
-                    (String) row[2], (String) row[4], keywords, (String) row[3], order++));
-            map.put(category.getSlug(), category);
-        }
-        return map;
+        // Shared with BootstrapRunner so demo and production agree.
+        return ServiceCatalog.createAll(categories);
     }
 
     private User newUser(String email, String name, Role role, University university, boolean verified) {

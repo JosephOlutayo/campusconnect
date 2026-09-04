@@ -35,6 +35,8 @@ other's URLs.
 | `DATABASE_USER` | **yes** | |
 | `DATABASE_PASSWORD` | **yes** | |
 | `CORS_ORIGINS` | **yes** | Your frontend's public HTTPS origin, e.g. `https://campusconnect.app`. No trailing slash. |
+| `ADMIN_EMAIL` | **yes** | The first admin account. Created on first boot only if no admin exists. |
+| `ADMIN_PASSWORD` | **yes** | 12+ characters; the app refuses a shorter one. This account can change everything. |
 | `PORT` | usually auto | Most platforms inject this. |
 | `SECURE_COOKIES` | defaults true in prod | Leave alone unless you are deliberately serving over HTTP. |
 | `STRIPE_SECRET_KEY` | no | Setting it switches the gateway to Stripe — **which is not implemented yet**. See below. |
@@ -121,6 +123,31 @@ Fine for showing the app to people; not a footing for real users.
 Fly keeps the machine warm, which suits the WebSocket well.
 
 ---
+
+## Setting up your own campuses
+
+Production creates no demo data. On first boot the app creates the service
+categories and one administrator from `ADMIN_EMAIL` / `ADMIN_PASSWORD`, and
+nothing else — no universities, no providers.
+
+That admin account is the way in, and it matters because of an ordering
+constraint: **adding a university needs an admin, and signing up needs a
+university.** Without the admin, a fresh deployment cannot be set up at all.
+If you forget the variables the app still starts and logs exactly what to set.
+
+Once it is running:
+
+1. Sign in at `/login` with `ADMIN_EMAIL`.
+2. **Admin → Universities → Add.** For each school, set its name, short name,
+   slug, city, state, and its email domains as a comma-separated list
+   (`pvamu.edu, student.pvamu.edu`). Domains are what grant the campus-verified
+   badge, and they are stored per university — schools do not share a format.
+3. **Admin → Categories** if you want to rename or add service types.
+4. Providers can now sign up, pick their campus, and list services. Approve them
+   under **Admin → Providers** (or leave auto-approve on).
+
+Students whose email matches a domain you entered get the verified badge
+automatically. Anyone else can still register, just unverified.
 
 ## Before you go public
 

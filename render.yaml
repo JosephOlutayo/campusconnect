@@ -2,9 +2,9 @@
 #
 #   Render Dashboard -> New -> Blueprint -> pick this repository
 #
-# Two values are deliberately left blank (`sync: false`). They are the public
-# URLs of the services, which do not exist until the first deploy, so Render
-# prompts for them. Fill them in and redeploy — see the note on each.
+# Several values are deliberately left blank (`sync: false`), so Render prompts
+# for them rather than this file carrying them: the services' public URLs, which
+# do not exist until the first deploy, and the first administrator's credentials.
 
 databases:
   - name: campusconnect-db
@@ -45,6 +45,13 @@ services:
       #   https://campusconnect-web.onrender.com
       # Browser requests are rejected until this matches exactly.
       - key: CORS_ORIGINS
+        sync: false
+      # The first administrator. Demo data is off in production, so without
+      # these nobody can sign in to add universities — and without a university
+      # nobody can sign up at all. Password must be 12+ characters.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
         sync: false
 
   - type: web
