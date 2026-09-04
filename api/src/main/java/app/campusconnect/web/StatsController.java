@@ -25,6 +25,9 @@ import java.util.*;
 @RequestMapping("/api/stats")
 public class StatsController {
 
+    /** Seeded by DataSeeder; absent on any database that was never seeded. */
+    private static final String DEMO_ADMIN_EMAIL = "admin@campusconnect.dev";
+
     private final ProviderProfileRepository providers;
     private final ServiceOfferingRepository services;
     private final BookingRepository bookings;
@@ -33,6 +36,7 @@ public class StatsController {
     private final FavoriteRepository favorites;
     private final MessageRepository messages;
     private final NotificationRepository notifications;
+    private final UserRepository users;
     private final SettingsService settingsService;
     private final PaymentService paymentService;
 
@@ -40,6 +44,7 @@ public class StatsController {
                            BookingRepository bookings, UniversityRepository universities,
                            ReviewRepository reviews, FavoriteRepository favorites,
                            MessageRepository messages, NotificationRepository notifications,
+                           UserRepository users,
                            SettingsService settingsService, PaymentService paymentService) {
         this.providers = providers;
         this.services = services;
@@ -49,6 +54,7 @@ public class StatsController {
         this.favorites = favorites;
         this.messages = messages;
         this.notifications = notifications;
+        this.users = users;
         this.settingsService = settingsService;
         this.paymentService = paymentService;
     }
@@ -134,6 +140,10 @@ public class StatsController {
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("platformFeePercent", settingsService.platformFeePercent());
         row.put("paymentGateway", paymentService.activeGateway());
+        // The sign-in page offers one-tap demo logins. Once the demo data is
+        // gone those buttons only produce "email and password do not match",
+        // which reads as a broken login rather than a missing account.
+        row.put("demoAccountsAvailable", users.existsByEmailIgnoreCase(DEMO_ADMIN_EMAIL));
         return ApiResponse.ok(row);
     }
 

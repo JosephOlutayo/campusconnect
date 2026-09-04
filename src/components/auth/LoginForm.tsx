@@ -13,7 +13,7 @@ const DEMO_ACCOUNTS = [
   { label: "Admin", email: "admin@campusconnect.dev", note: "moderation console" },
 ];
 
-export function LoginForm() {
+export function LoginForm({ showDemoAccounts = false }: { showDemoAccounts?: boolean }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -88,28 +88,30 @@ export function LoginForm() {
         </Button>
       </form>
 
-      <div className="mt-8 rounded-2xl border border-dashed border-line-strong bg-surface-muted p-4">
-        <p className="text-xs font-bold tracking-wide text-ink-muted uppercase">Demo accounts</p>
-        <p className="mt-1 text-xs text-ink-muted">
-          Tap one to fill the form. Password is <code className="font-semibold">password123</code>.
-        </p>
-        <div className="mt-3 grid gap-1.5">
-          {DEMO_ACCOUNTS.map((account) => (
-            <button
-              key={account.email}
-              type="button"
-              onClick={() => fillDemo(account.email)}
-              className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-left text-xs transition-colors hover:bg-accent-soft"
-            >
-              <span className="min-w-0">
-                <span className="block font-semibold text-ink">{account.label}</span>
-                <span className="block truncate text-ink-muted">{account.note}</span>
-              </span>
-              <span className="shrink-0 font-semibold text-accent">Use</span>
-            </button>
-          ))}
+      {showDemoAccounts && (
+        <div className="mt-8 rounded-2xl border border-dashed border-line-strong bg-surface-muted p-4">
+          <p className="text-xs font-bold tracking-wide text-ink-muted uppercase">Demo accounts</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            Tap one to fill the form. Password is <code className="font-semibold">password123</code>.
+          </p>
+          <div className="mt-3 grid gap-1.5">
+            {DEMO_ACCOUNTS.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                onClick={() => fillDemo(account.email)}
+                className="flex items-center justify-between gap-3 rounded-xl bg-surface px-3 py-2 text-left text-xs transition-colors hover:bg-accent-soft"
+              >
+                <span className="min-w-0">
+                  <span className="block font-semibold text-ink">{account.label}</span>
+                  <span className="block truncate text-ink-muted">{account.note}</span>
+                </span>
+                <span className="shrink-0 font-semibold text-accent">Use</span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
