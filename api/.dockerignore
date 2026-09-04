@@ -1,7 +1,7 @@
 target
 data
 .git
-.env
+.env*
 *.db
 *.mv.db
 README.md

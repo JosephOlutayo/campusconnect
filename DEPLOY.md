@@ -98,8 +98,14 @@ itself. Nothing secret lives in the file.
    - `NEXT_PUBLIC_WS_URL` on the web → the API's URL + `/ws`, e.g. `https://campusconnect-api.onrender.com/ws`
    You may need to deploy once, copy the assigned URLs, set these, and redeploy.
 
-Note the free plan sleeps after inactivity, which drops WebSocket connections
-and makes the first request slow. Fine for a demo, not for real users.
+`render.yaml` asks for the free plan everywhere. Two things to know about that:
+
+- **A free Postgres instance is deleted after 30 days.** Everything in it goes
+  with it. Move to a paid database before anyone's real bookings live there.
+- Free web services sleep when idle. That drops WebSocket connections and makes
+  the first request after a nap slow.
+
+Fine for showing the app to people; not a footing for real users.
 
 ### Vercel (frontend) + Render (API)
 

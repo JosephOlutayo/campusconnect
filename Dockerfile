@@ -26,7 +26,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN addgroup -S nodejs -g 1001 && adduser -S nextjs -u 1001
+RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 --ingroup nodejs nextjs
 
 # `output: standalone` emits a self-contained server plus only the node_modules
 # it actually uses, which is a fraction of the full install.

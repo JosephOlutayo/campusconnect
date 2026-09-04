@@ -1,8 +1,9 @@
 node_modules
 .next
 .git
-.env
-.env.local
+# Every env file. .env.docker holds the JWT secret and the database
+# password, and COPY . . would bake it into an image layer.
+.env*
 api
 README.md
 DEPLOY.md
