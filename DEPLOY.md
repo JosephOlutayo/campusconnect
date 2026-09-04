@@ -30,7 +30,8 @@ other's URLs.
 | --- | --- | --- |
 | `SPRING_PROFILES_ACTIVE` | **yes** | Must be `prod`. Turns off demo seeding and the H2 console, turns on Secure cookies. |
 | `CAMPUSCONNECT_JWT_SECRET` | **yes** | `openssl rand -base64 48`. **The app refuses to start in prod without a real one** — the development default is published in this repository, so anyone could forge an admin session. |
-| `DATABASE_URL` | **yes** | `jdbc:postgresql://host:5432/dbname` — note the `jdbc:` prefix, which most providers' connection strings omit. |
+| `DATABASE_URL` | one of two | `jdbc:postgresql://host:5432/dbname` — note the `jdbc:` prefix, which providers' connection strings omit. |
+| `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_NAME` | one of two | Use these instead when the platform gives you the parts separately; the URL is composed for you. `DATABASE_PORT` defaults to 5432. |
 | `DATABASE_USER` | **yes** | |
 | `DATABASE_PASSWORD` | **yes** | |
 | `CORS_ORIGINS` | **yes** | Your frontend's public HTTPS origin, e.g. `https://campusconnect.app`. No trailing slash. |
@@ -42,7 +43,7 @@ other's URLs.
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `API_BASE_URL` | **yes** | Where the *server* reaches the API. Can be an internal address. |
+| `API_BASE_URL` | **yes** | Where the *server* reaches the API. Can be an internal address, with or without a scheme — `http://` is assumed for a bare `host:port`. |
 | `NEXT_PUBLIC_WS_URL` | **yes** | Where the *browser* reaches the WebSocket, e.g. `https://api.example.com/ws`. Baked in at build time, so it must be set as a **build** variable, not a runtime one. |
 | `NEXT_PUBLIC_APP_NAME` | no | Defaults to CampusConnect. |
 
@@ -83,6 +84,22 @@ have it.
 5. Add a service for the **frontend**, root directory `/`. Set `API_BASE_URL` to
    the API service's internal URL and `NEXT_PUBLIC_WS_URL` to its public URL + `/ws`.
 6. Set `CORS_ORIGINS` on the API to the frontend's public URL, and redeploy the API.
+
+### Render (fewest manual steps — `render.yaml` does the provisioning)
+
+`render.yaml` is a Blueprint describing all three pieces, so Render creates the
+database, wires its credentials into the API, and generates the JWT secret
+itself. Nothing secret lives in the file.
+
+1. Push this repository to GitHub.
+2. Render Dashboard → **New → Blueprint** → pick the repository.
+3. Render prompts for the two values that cannot exist before the first deploy:
+   - `CORS_ORIGINS` on the API → the web service's URL, e.g. `https://campusconnect-web.onrender.com`
+   - `NEXT_PUBLIC_WS_URL` on the web → the API's URL + `/ws`, e.g. `https://campusconnect-api.onrender.com/ws`
+   You may need to deploy once, copy the assigned URLs, set these, and redeploy.
+
+Note the free plan sleeps after inactivity, which drops WebSocket connections
+and makes the first request slow. Fine for a demo, not for real users.
 
 ### Vercel (frontend) + Render (API)
 

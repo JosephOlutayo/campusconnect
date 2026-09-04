@@ -11,7 +11,20 @@ import { cookies } from "next/headers";
  * carrying the same cc_token cookie.
  */
 
-export const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:8080";
+/**
+ * Where the server reaches the API. Hosting platforms disagree about the shape
+ * of this value — some hand out a full URL, others just `host:port` — so accept
+ * either and add the scheme when it is missing. A bare host is always internal
+ * (container-to-container), hence http rather than https.
+ */
+function resolveApiBaseUrl(): string {
+  const raw = process.env.API_BASE_URL?.trim();
+  if (!raw) return "http://localhost:8080";
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+  return withScheme.replace(/\/+$/, ""); // a trailing slash would double up
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 /** The envelope every Java endpoint returns. */
 type Envelope<T> = { ok: boolean; data?: T; error?: string };

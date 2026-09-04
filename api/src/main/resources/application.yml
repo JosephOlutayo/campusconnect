@@ -101,7 +101,11 @@ spring:
     activate:
       on-profile: prod
   datasource:
-    url: ${DATABASE_URL}
+    # Most platforms hand out host/port/name as separate variables and never a
+    # jdbc: URL, so accept either shape: set DATABASE_URL yourself, or let it be
+    # composed from the parts. There is no default host — a missing value must
+    # fail loudly rather than quietly pointing production at localhost.
+    url: ${DATABASE_URL:jdbc:postgresql://${DATABASE_HOST}:${DATABASE_PORT:5432}/${DATABASE_NAME}}
     driver-class-name: org.postgresql.Driver
     username: ${DATABASE_USER}
     password: ${DATABASE_PASSWORD}
