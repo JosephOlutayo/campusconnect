@@ -63,8 +63,12 @@ export default async function AppointmentPage({
             <h2 className="mb-4 text-base font-semibold text-ink">Details</h2>
             <dl className="divide-y divide-line">
               <Row icon="calendar" label="When">
+                {/* formatFullDate already names the weekday, so the relative
+                    prefix is only added when it says something different. */}
                 <span className="font-semibold text-ink">
-                  {formatRelativeDay(startAt)}, {formatFullDate(startAt)}
+                  {["Today", "Tomorrow", "Yesterday"].includes(formatRelativeDay(startAt))
+                    ? `${formatRelativeDay(startAt)}, ${formatFullDate(startAt)}`
+                    : formatFullDate(startAt)}
                 </span>
                 <br />
                 {formatTimeRange(startAt, endAt)} · {durationLabel(booking.durationMinutes)}
