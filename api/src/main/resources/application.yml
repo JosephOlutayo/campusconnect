@@ -1,13 +1,13 @@
 server:
-  port: 8080
+  port: ${PORT:8080}
+  forward-headers-strategy: framework # trust the platform's X-Forwarded-* headers
 
 spring:
   application:
     name: campusconnect-api
 
   # H2 in file mode: zero setup, but the data survives a restart like a real
-  # database. Swap the three datasource lines below for Postgres and nothing
-  # else in the app changes -- JPA is the abstraction that makes that true.
+  # database. The `prod` profile below switches to Postgres.
   datasource:
     # AUTO_SERVER lets a second process (the H2 console, a CLI) attach while the
     # app is running. It is incompatible with DB_CLOSE_ON_EXIT, so that is left off.
@@ -23,8 +23,8 @@ spring:
 
   jpa:
     hibernate:
-      # The schema is generated from the entities for the MVP. Before anything
-      # real ships, switch this to `validate` and manage change with Flyway.
+      # Generated from the entities. Fine here; see the prod profile below for
+      # why this is a liability once a database holds real data.
       ddl-auto: update
     open-in-view: false
     properties:
@@ -40,15 +40,33 @@ spring:
       write-dates-as-timestamps: false
 
 campusconnect:
-  # 32+ chars. Override in production via CAMPUSCONNECT_JWT_SECRET.
   jwt:
+    # DEV ONLY. Startup fails in prod if this value is still in use — see
+    # JwtService. Generate a real one with: openssl rand -base64 48
     secret: ${CAMPUSCONNECT_JWT_SECRET:dev-only-change-me-0123456789abcdefghijklmnop}
     ttl-days: 30
   # Starting marketplace fee. The admin console overrides this at runtime and
   # the stored value wins.
   platform-fee-percent: 10
   # Where the Next.js client runs, for CORS.
-  cors-origins: http://localhost:3000,http://localhost:3100
+  cors-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:3100}
+  # Demo data. Never seeded in prod.
+  seed: ${SEED_DEMO_DATA:true}
+  # Session cookie Secure flag. Must be true anywhere served over HTTPS.
+  secure-cookies: ${SECURE_COOKIES:false}
+
+# Health only. Nothing else from actuator is exposed — /env and /beans would
+# leak configuration including connection strings.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
 
 logging:
   level:
@@ -56,7 +74,7 @@ logging:
     org.hibernate.SQL: WARN
 
 ---
-# Run with `--spring.profiles.active=postgres` once a server is available.
+# Local Postgres, still with demo data. `--spring.profiles.active=postgres`
 spring:
   config:
     activate:
@@ -68,3 +86,50 @@ spring:
     password: ${DATABASE_PASSWORD:postgres}
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+---
+# PRODUCTION. `--spring.profiles.active=prod`
+#
+# Every difference here is deliberate:
+#   - Postgres, with no default credentials to fall back on
+#   - the H2 console is off
+#   - demo data is off, so no admin@campusconnect.dev / password123 account
+#     is ever created on a public host
+#   - Secure cookies, since production is HTTPS
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DATABASE_URL}
+    driver-class-name: org.postgresql.Driver
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      # `update` creates the schema on a FRESH database, which is what a first
+      # deploy needs. It is safe while the database is empty and increasingly
+      # not safe once it holds data you care about — Hibernate will happily add
+      # columns based on whatever the entities currently say.
+      #
+      # Before this database holds real bookings: add Flyway, generate a
+      # baseline migration from the live schema, and set this to `validate`.
+      # Tracked in the README's pre-launch list.
+      ddl-auto: ${DDL_AUTO:update}
+    properties:
+      hibernate:
+        format_sql: false
+  h2:
+    console:
+      enabled: false
+
+campusconnect:
+  seed: false
+  secure-cookies: true
+
+logging:
+  level:
+    root: WARN
+    app.campusconnect: INFO
+    org.springframework.web: WARN

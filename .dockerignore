@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env
+.env.local
+api
+README.md
+DEPLOY.md
+npm-debug.log
+.DS_Store

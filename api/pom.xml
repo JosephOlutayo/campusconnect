@@ -44,6 +44,13 @@
       <artifactId>spring-boot-starter-websocket</artifactId>
     </dependency>
 
+    <!-- /actuator/health, which hosting platforms poll to decide if the
+         container is alive. Only health is exposed — see application.yml. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
     <!-- H2 for zero-setup local dev; Postgres for anything real. JPA means
          switching is a config change, not a rewrite. -->
     <dependency>

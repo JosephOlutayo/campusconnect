@@ -9,6 +9,7 @@ import app.campusconnect.service.AuthService;
 import app.campusconnect.web.dto.AuthDtos.*;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
@@ -22,10 +23,13 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtService jwtService;
+    private final boolean secureCookies;
 
-    public AuthController(AuthService authService, JwtService jwtService) {
+    public AuthController(AuthService authService, JwtService jwtService,
+                          @Value("${campusconnect.secure-cookies:false}") boolean secureCookies) {
         this.authService = authService;
         this.jwtService = jwtService;
+        this.secureCookies = secureCookies;
     }
 
     /**
@@ -36,7 +40,8 @@ public class AuthController {
     private void attachCookie(HttpServletResponse response, String token) {
         ResponseCookie cookie = ResponseCookie.from(JwtAuthFilter.COOKIE_NAME, token)
                 .httpOnly(true)
-                .secure(false) // true behind HTTPS in production
+                // Mandatory over HTTPS; the prod profile turns this on.
+                .secure(secureCookies)
                 .sameSite("Lax")
                 .path("/")
                 .maxAge(jwtService.ttlSeconds())
@@ -76,7 +81,7 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResponse<String> logout(HttpServletResponse response) {
         ResponseCookie cleared = ResponseCookie.from(JwtAuthFilter.COOKIE_NAME, "")
-                .httpOnly(true).path("/").maxAge(0).build();
+                .httpOnly(true).secure(secureCookies).sameSite("Lax").path("/").maxAge(0).build();
         response.addHeader("Set-Cookie", cleared.toString());
         return ApiResponse.ok("signed out");
     }
