@@ -83,7 +83,7 @@ public class EmailVerificationService {
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
 
         tokens.save(new EmailVerificationToken(user, hash(token), user.getEmail(),
-                Instant.now().plus(LIFETIME)));
+                EmailVerificationToken.Purpose.CONFIRM_CURRENT, Instant.now().plus(LIFETIME)));
 
         String link = appUrl + "/verify-email?token=" + token;
         mailer.send(user.getEmail(), "Confirm your CampusConnect email", """
@@ -97,6 +97,72 @@ public class EmailVerificationService {
 
                 If you did not create an account, you can ignore this email.
                 """.formatted(user.getName(), link));
+    }
+
+    /**
+     * Starts an email change. Nothing moves until the link is followed.
+     *
+     * The link goes to the NEW address, because the point is to prove that
+     * inbox is reachable. The current address gets a heads-up instead — that
+     * warning is how somebody finds out their account is being taken over,
+     * while they can still do something about it.
+     */
+    @Transactional
+    public void requestEmailChange(User user, String newEmail, String currentPassword) {
+        // A hijacked session should not be enough to walk off with the account.
+        if (!authService.passwordMatches(user, currentPassword)) {
+            throw ApiException.badRequest("That password is not right.");
+        }
+
+        String claimed = newEmail == null ? "" : newEmail.trim().toLowerCase();
+        if (claimed.isBlank() || !claimed.contains("@")) {
+            throw ApiException.badRequest("Enter a valid email address.");
+        }
+        if (claimed.equalsIgnoreCase(user.getEmail())) {
+            throw ApiException.badRequest("That is already your email address.");
+        }
+        if (users.existsByEmailIgnoreCase(claimed)) {
+            // The address is in use. Said plainly because the person asking has
+            // already proven who they are with their password.
+            throw ApiException.badRequest("Another account already uses that address.");
+        }
+        if (tokens.countByUserAndCreatedAtAfter(user, Instant.now().minus(Duration.ofHours(1))) >= MAX_PER_HOUR) {
+            throw ApiException.badRequest(
+                    "That is a lot of requests. Please wait an hour before trying again.");
+        }
+
+        tokens.deleteByUser(user);
+
+        byte[] raw = new byte[TOKEN_BYTES];
+        random.nextBytes(raw);
+        String token = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+        tokens.save(new EmailVerificationToken(user, hash(token), claimed,
+                EmailVerificationToken.Purpose.CHANGE_TO, Instant.now().plus(LIFETIME)));
+
+        String link = appUrl + "/verify-email?token=" + token;
+        mailer.send(claimed, "Confirm your new CampusConnect email", """
+                Hi %s,
+
+                Confirm this address to move your CampusConnect account to it:
+
+                %s
+
+                This link works once and expires in 24 hours. Your account keeps
+                its current address until you follow it.
+                """.formatted(user.getName(), link));
+
+        mailer.send(user.getEmail(), "Your CampusConnect email is being changed", """
+                Hi %s,
+
+                Somebody asked to move this account to %s. It will only move once
+                that address is confirmed, and this one will stop working for
+                signing in.
+
+                If this was not you, change your password now — someone else has
+                access to your account.
+                """.formatted(user.getName(), claimed));
+
+        log.info("Email change requested for {} -> {}", user.getEmail(), claimed);
     }
 
     /**
@@ -122,10 +188,22 @@ public class EmailVerificationService {
 
         User user = record.getUser();
 
-        // The address may have been changed after the link was sent. Verifying
-        // the new one on the strength of a link sent to the old one would let
-        // somebody launder an unverified address through a verified account.
-        if (!record.getSentTo().equalsIgnoreCase(user.getEmail())) {
+        if (record.getPurpose() == EmailVerificationToken.Purpose.CHANGE_TO) {
+            // Somebody else may have registered this address between the request
+            // and the click.
+            String claimed = record.getSentTo();
+            boolean takenBySomeoneElse = users.findByEmailIgnoreCase(claimed)
+                    .filter(other -> !other.getId().equals(user.getId()))
+                    .isPresent();
+            if (takenBySomeoneElse) {
+                throw ApiException.badRequest(
+                        "That address now belongs to another account.");
+            }
+            user.setEmail(claimed);
+        } else if (!record.getSentTo().equalsIgnoreCase(user.getEmail())) {
+            // The address changed after the link was sent. Verifying the new one
+            // on the strength of a link sent to the old would let somebody
+            // launder an unverified address through a verified account.
             throw ApiException.badRequest(
                     "This link was sent to a different address. Ask for a new one.");
         }
@@ -133,14 +211,13 @@ public class EmailVerificationService {
         record.setConsumedAt(Instant.now());
         user.setEmailVerifiedAt(Instant.now());
 
-        // Now — and only now — does a campus domain earn the badge.
+        // Now — and only now — does a campus domain earn the badge. Re-evaluated
+        // from scratch, so changing to a non-campus address drops it.
         Optional<University> campus = authService.campusForEmail(user.getEmail());
         boolean matchesTheirCampus = campus.isPresent()
                 && user.getUniversity() != null
                 && campus.get().getId().equals(user.getUniversity().getId());
-        if (matchesTheirCampus) {
-            user.setStudentVerifiedAt(Instant.now());
-        }
+        user.setStudentVerifiedAt(matchesTheirCampus ? Instant.now() : null);
 
         users.save(user);
         log.info("Email verified for {} (campus badge: {})", user.getEmail(), matchesTheirCampus);

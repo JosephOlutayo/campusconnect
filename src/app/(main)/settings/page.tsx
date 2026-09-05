@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { SignOutButton } from "@/components/profile/SignOutButton";
+import { ChangeEmailCard } from "@/components/profile/ChangeEmailCard";
 
 export const metadata: Metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
@@ -24,7 +25,10 @@ export default async function SettingsPage() {
           <dl className="mt-4 divide-y divide-line text-sm">
             <div className="flex items-center justify-between gap-4 py-3 first:pt-0">
               <dt className="text-ink-muted">Email</dt>
-              <dd className="font-medium text-ink">{user.email}</dd>
+              <dd className="flex items-center gap-2 font-medium text-ink">
+                {user.email}
+                {user.emailVerified ? null : <Badge tone="warning">Unconfirmed</Badge>}
+              </dd>
             </div>
             <div className="flex items-center justify-between gap-4 py-3">
               <dt className="text-ink-muted">Campus</dt>
@@ -52,6 +56,8 @@ export default async function SettingsPage() {
             Edit profile <Icon name="arrowRight" size={15} />
           </Link>
         </section>
+
+        <ChangeEmailCard currentEmail={user.email} />
 
         <section className="card p-5">
           <h2 className="text-base font-semibold text-ink">Notifications</h2>

@@ -13,6 +13,14 @@ public final class AuthDtos {
     private AuthDtos() {
     }
 
+    public record ChangeEmailRequest(
+            @NotBlank(message = "Enter your new email.")
+            @Email(message = "That does not look like a valid email.")
+            String newEmail,
+            @NotBlank(message = "Enter your current password.")
+            String password) {
+    }
+
     public record VerifyEmailRequest(
             @NotBlank(message = "That verification link is not valid.")
             String token) {

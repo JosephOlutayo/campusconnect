@@ -36,6 +36,11 @@ public class AuthService {
      * student domains somewhere.
      */
     @Transactional(readOnly = true)
+    /** Confirms someone knows the account's current password. */
+    public boolean passwordMatches(User user, String rawPassword) {
+        return rawPassword != null && passwordEncoder.matches(rawPassword, user.getPasswordHash());
+    }
+
     public Optional<University> campusForEmail(String email) {
         int at = email.indexOf('@');
         if (at < 0 || at == email.length() - 1) {

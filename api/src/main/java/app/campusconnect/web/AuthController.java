@@ -116,6 +116,23 @@ public class AuthController {
         return ApiResponse.ok("Check " + user.getEmail() + " for a new link.");
     }
 
+    /**
+     * Requests a move to a new address. The account does not change here — the
+     * link sent to the new address does that when it is followed.
+     */
+    @PostMapping("/change-email")
+    @Transactional
+    public ApiResponse<String> changeEmail(@CurrentUser AuthenticatedUser me,
+                                           @Valid @RequestBody ChangeEmailRequest request) {
+        if (me == null) {
+            throw ApiException.unauthorized("Not signed in.");
+        }
+        User user = authService.require(me.id());
+        emailVerification.requestEmailChange(user, request.newEmail(), request.password());
+        return ApiResponse.ok("Check " + request.newEmail().trim().toLowerCase()
+                + " for a link. Your address changes once you follow it.");
+    }
+
     /** Who am I? Used by the client to hydrate the session on load. */
     @GetMapping("/me")
     public ApiResponse<UserDto> me(@CurrentUser AuthenticatedUser me) {

@@ -2,6 +2,8 @@ package app.campusconnect.domain;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -45,12 +47,20 @@ public class EmailVerificationToken {
     private String tokenHash;
 
     /**
-     * The address the link was sent to, captured at issue time. Someone can
-     * change their email after requesting a link; that older link must not
-     * then verify the new address.
+     * The address the link was sent to.
+     *
+     * For CONFIRM_CURRENT this is the account's address as it stood when the
+     * link was issued, so a stale link cannot verify an address changed since.
+     * For CHANGE_TO it is the new address being claimed, and the account moves
+     * to it on redemption — which is why the link goes there and not to the
+     * current inbox. Proving you can read the destination is the whole point.
      */
     @Column(nullable = false, length = 190)
     private String sentTo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private Purpose purpose = Purpose.CONFIRM_CURRENT;
 
     @Column(nullable = false)
     private Instant expiresAt;
@@ -61,11 +71,20 @@ public class EmailVerificationToken {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
-    public EmailVerificationToken(User user, String tokenHash, String sentTo, Instant expiresAt) {
+    public EmailVerificationToken(User user, String tokenHash, String sentTo,
+                                 Purpose purpose, Instant expiresAt) {
         this.user = user;
         this.tokenHash = tokenHash;
         this.sentTo = sentTo;
+        this.purpose = purpose;
         this.expiresAt = expiresAt;
+    }
+
+    public enum Purpose {
+        /** Prove the address already on the account. */
+        CONFIRM_CURRENT,
+        /** Prove a new address, then move the account to it. */
+        CHANGE_TO
     }
 
     public boolean isUsable(Instant now) {
