@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/ui/Icon";
 import type { NavItem } from "@/lib/nav";
@@ -13,9 +14,41 @@ function isActive(pathname: string, href: string, exact?: boolean): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * True while the on-screen keyboard is up.
+ *
+ * A fixed bottom bar repositions to the bottom of the *visual* viewport, so
+ * when the keyboard opens the tab bar comes with it and lands directly under
+ * whatever you are typing into. On the message thread that puts the Messages
+ * tab under the composer, and a tap meant for the text box navigates away
+ * mid-sentence. Comparing the visual viewport against the layout viewport is
+ * the only reliable way to know the keyboard is there.
+ */
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return;
+
+    // A keyboard takes roughly a third of the screen; a URL bar hiding takes
+    // far less. A quarter is comfortably between the two.
+    const onResize = () => setOpen(viewport.height < window.innerHeight * 0.75);
+    viewport.addEventListener("resize", onResize);
+    return () => viewport.removeEventListener("resize", onResize);
+  }, []);
+
+  return open;
+}
+
 /** Phone tab bar. Hidden from md upwards where the sidebar takes over. */
 export function BottomNav({ items, counts }: { items: NavItem[]; counts: BadgeCounts }) {
   const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
+
+  // Out of the way entirely rather than merely behind: a transparent bar still
+  // takes the tap.
+  if (keyboardOpen) return null;
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur-lg md:hidden">
