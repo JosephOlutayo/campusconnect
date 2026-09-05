@@ -13,6 +13,11 @@ public final class AuthDtos {
     private AuthDtos() {
     }
 
+    public record VerifyEmailRequest(
+            @NotBlank(message = "That verification link is not valid.")
+            String token) {
+    }
+
     public record SignupRequest(
             @NotBlank(message = "Tell us your name.")
             @Size(min = 2, max = 80, message = "Tell us your name.")
@@ -42,6 +47,7 @@ public final class AuthDtos {
     public record UserDto(UUID id, String email, String name, String role, String avatarSeed,
                           String bio, String phone, UUID universityId, String universityName,
                           String universityShortName, boolean studentVerified,
+                          boolean emailVerified,
                           UUID providerProfileId, String providerBusinessName) {
 
         public static UserDto of(User user) {
@@ -53,6 +59,7 @@ public final class AuthDtos {
                     user.getUniversity() == null ? null : user.getUniversity().getName(),
                     user.getUniversity() == null ? null : user.getUniversity().getShortName(),
                     user.isStudentVerified(),
+                    user.getEmailVerifiedAt() != null,
                     provider == null ? null : provider.getId(),
                     provider == null ? null : provider.getBusinessName());
         }

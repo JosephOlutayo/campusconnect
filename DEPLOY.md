@@ -37,6 +37,9 @@ other's URLs.
 | `CORS_ORIGINS` | **yes** | Your frontend's public HTTPS origin, e.g. `https://campusconnect.app`. No trailing slash. |
 | `ADMIN_EMAIL` | **yes** | The first admin account. Created on first boot only if no admin exists. |
 | `ADMIN_PASSWORD` | **yes** | 12+ characters; the app refuses a shorter one. This account can change everything. |
+| `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | **yes** | SMTP for verification emails. **The prod profile refuses to start without a host** — students would wait forever for a link that was never sent. |
+| `MAIL_FROM` | **yes** | e.g. `CampusConnect <no-reply@yourdomain.com>`. Needs SPF and DKIM on that domain or campus mail servers will bin it. |
+| `APP_URL` | **yes** | Your frontend's public URL. Verification links are built from it, so a wrong value sends people to a dead link. |
 | `PORT` | usually auto | Most platforms inject this. |
 | `SECURE_COOKIES` | defaults true in prod | Leave alone unless you are deliberately serving over HTTP. |
 | `STRIPE_SECRET_KEY` | no | Setting it switches the gateway to Stripe — **which is not implemented yet**. See below. |
@@ -146,8 +149,13 @@ Once it is running:
 4. Providers can now sign up, pick their campus, and list services. Approve them
    under **Admin → Providers** (or leave auto-approve on).
 
-Students whose email matches a domain you entered get the verified badge
-automatically. Anyone else can still register, just unverified.
+Students get the campus-verified badge by confirming a link emailed to an
+address on one of your domains — a matching domain alone is not enough, since
+anyone can type one. Anyone else can still register, just without the badge.
+
+With no `MAIL_HOST` set (local development), the app prints the verification
+link to the API console instead of sending it, so the flow can be tested with
+no email account.
 
 ## Before you go public
 
@@ -181,7 +189,9 @@ These are ordered by how much they matter.
 ### Worth knowing
 
 8. Images are generated gradients, not uploads.
-9. Email, SMS and push are not wired to a provider — notifications are in-app only.
+9. SMS and push are not wired to a provider; in-app notifications only. Email
+   is wired, but is used solely for address verification — not for booking
+   reminders or receipts.
 10. Availability assumes one timezone.
 11. `/actuator/health` is public for platform health checks; nothing else is exposed.
 

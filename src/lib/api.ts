@@ -139,6 +139,7 @@ export type SessionUser = {
   universityName: string | null;
   universityShortName: string | null;
   studentVerified: boolean;
+  emailVerified: boolean;
   providerProfileId: string | null;
   providerBusinessName: string | null;
 };

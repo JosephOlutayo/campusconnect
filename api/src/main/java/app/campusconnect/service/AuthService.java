@@ -64,16 +64,10 @@ public class AuthService {
                         + UUID.randomUUID().toString().substring(0, 6),
                 university);
 
-        // A campus email that matches the chosen university earns the badge
-        // immediately; any other address still gets an account, just unverified.
-        boolean studentVerified = campusForEmail(normalised)
-                .map(match -> match.getId().equals(university.getId()))
-                .orElse(false);
-        if (studentVerified) {
-            user.setStudentVerifiedAt(Instant.now());
-            user.setEmailVerifiedAt(Instant.now());
-        }
-
+        // No badge here. A matching domain proves only that somebody typed an
+        // address ending in it — anyone can do that, and the domain is public.
+        // Both flags are set in EmailVerificationService.consume, once the
+        // person has followed a link sent to that address.
         return users.save(user);
     }
 

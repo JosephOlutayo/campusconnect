@@ -6,6 +6,7 @@ import app.campusconnect.security.CurrentUser;
 import app.campusconnect.security.JwtAuthFilter;
 import app.campusconnect.security.JwtService;
 import app.campusconnect.service.AuthService;
+import app.campusconnect.service.EmailVerificationService;
 import app.campusconnect.web.dto.AuthDtos.*;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -22,13 +23,16 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthService authService;
+    private final EmailVerificationService emailVerification;
     private final JwtService jwtService;
     private final boolean secureCookies;
 
     public AuthController(AuthService authService, JwtService jwtService,
+                          EmailVerificationService emailVerification,
                           @Value("${campusconnect.secure-cookies:false}") boolean secureCookies) {
         this.authService = authService;
         this.jwtService = jwtService;
+        this.emailVerification = emailVerification;
         this.secureCookies = secureCookies;
     }
 
@@ -55,6 +59,7 @@ public class AuthController {
                                                                HttpServletResponse response) {
         User user = authService.signup(request.name(), request.email(),
                 request.password(), request.universityId());
+        emailVerification.issue(user);
         String token = jwtService.issue(user);
         attachCookie(response, token);
 
@@ -84,6 +89,31 @@ public class AuthController {
                 .httpOnly(true).secure(secureCookies).sameSite("Lax").path("/").maxAge(0).build();
         response.addHeader("Set-Cookie", cleared.toString());
         return ApiResponse.ok("signed out");
+    }
+
+    /**
+     * Redeems a link from a verification email. Public: the person clicking it
+     * may well be in a browser that has never signed in.
+     */
+    @PostMapping("/verify-email")
+    @Transactional
+    public ApiResponse<UserDto> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        return ApiResponse.ok(UserDto.of(emailVerification.consume(request.token())));
+    }
+
+    /** Sends another link to the signed-in user's own address. */
+    @PostMapping("/resend-verification")
+    @Transactional
+    public ApiResponse<String> resendVerification(@CurrentUser AuthenticatedUser me) {
+        if (me == null) {
+            throw ApiException.unauthorized("Not signed in.");
+        }
+        User user = authService.require(me.id());
+        if (user.getEmailVerifiedAt() != null) {
+            return ApiResponse.ok("Your email is already confirmed.");
+        }
+        emailVerification.issue(user);
+        return ApiResponse.ok("Check " + user.getEmail() + " for a new link.");
     }
 
     /** Who am I? Used by the client to hydrate the session on load. */

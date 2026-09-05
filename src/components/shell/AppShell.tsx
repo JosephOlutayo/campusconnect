@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { getSessionUser, apiGetOrNull } from "@/lib/api";
+import { VerifyEmailBanner } from "@/components/auth/VerifyEmailBanner";
 import { APP_NAME } from "@/lib/constants";
 import { mobileItems, navFor } from "@/lib/nav";
 import type { MeSummary } from "@/lib/types";
@@ -102,6 +103,11 @@ export async function AppShell({ children, area = "app" }: Props) {
           </header>
 
           <main className="min-w-0 flex-1 px-4 pt-5 pb-28 sm:px-6 md:px-8 md:pt-7 md:pb-10">
+            {user && !user.emailVerified ? (
+              <div className="mb-5">
+                <VerifyEmailBanner email={user.email} />
+              </div>
+            ) : null}
             {children}
           </main>
         </div>

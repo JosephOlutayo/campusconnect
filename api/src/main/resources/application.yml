@@ -34,6 +34,21 @@ spring:
           time_zone: UTC
     show-sql: false
 
+  # No host by default: the app logs verification emails instead of sending
+  # them, so local development needs no email account. The prod profile
+  # refuses to start without a real host.
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -61,6 +76,10 @@ campusconnect:
     admin-email: ${ADMIN_EMAIL:}
     admin-password: ${ADMIN_PASSWORD:}
     admin-name: ${ADMIN_NAME:Administrator}
+  # Where the frontend lives, for links inside emails.
+  app-url: ${APP_URL:http://localhost:3100}
+  mail:
+    from: ${MAIL_FROM:CampusConnect <no-reply@localhost>}
 
 # Health only. Nothing else from actuator is exposed — /env and /beans would
 # leak configuration including connection strings.
@@ -74,6 +93,13 @@ management:
       show-details: never
       probes:
         enabled: true
+  health:
+    # Whether the SMTP server answers right now is not a reason to take the app
+    # out of rotation — everything except verification email keeps working, and
+    # the platform would stop routing traffic over it. With no host configured
+    # this check fails outright, which would block a deploy from ever going live.
+    mail:
+      enabled: false
 
 logging:
   level:

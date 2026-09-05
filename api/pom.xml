@@ -44,6 +44,13 @@
       <artifactId>spring-boot-starter-websocket</artifactId>
     </dependency>
 
+    <!-- Verification emails. Without a configured host the app logs the
+         message instead of sending it, so local dev needs no account. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-mail</artifactId>
+    </dependency>
+
     <!-- /actuator/health, which hosting platforms poll to decide if the
          container is alive. Only health is exposed — see application.yml. -->
     <dependency>
