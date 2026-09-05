@@ -58,6 +58,18 @@
       <artifactId>spring-boot-starter-actuator</artifactId>
     </dependency>
 
+    <!-- Versioned schema migrations. Hibernate's ddl-auto cannot safely evolve
+         a database that holds data — it will not add a NOT NULL column to a
+         populated table, and silently leaves the schema wrong when it fails. -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+
     <!-- H2 for zero-setup local dev; Postgres for anything real. JPA means
          switching is a config change, not a rewrite. -->
     <dependency>

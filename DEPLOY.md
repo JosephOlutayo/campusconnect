@@ -42,6 +42,7 @@ other's URLs.
 | `APP_URL` | **yes** | Your frontend's public URL. Verification links are built from it, so a wrong value sends people to a dead link. |
 | `PORT` | usually auto | Most platforms inject this. |
 | `SECURE_COOKIES` | defaults true in prod | Leave alone unless you are deliberately serving over HTTP. |
+| `FLYWAY_BASELINE` | first deploy only | `true` when pointing at a database Hibernate already created, so Flyway adopts the existing schema as V1. |
 | `STRIPE_SECRET_KEY` | no | Setting it switches the gateway to Stripe — **which is not implemented yet**. See below. |
 
 ### Frontend
@@ -176,9 +177,15 @@ These are ordered by how much they matter.
 
 ### Important — do soon after
 
-4. **Switch to Flyway.** The prod profile currently runs `ddl-auto: update`, which
-   is fine on an empty database and increasingly not fine once it holds bookings.
-   Generate a baseline migration from the live schema, then set `DDL_AUTO=validate`.
+4. ~~Switch to Flyway.~~ **Done.** The schema is built by the migrations in
+   `api/src/main/resources/db/migration`, and production runs `ddl-auto:
+   validate`, so a mismatch between the entities and the migrations fails the
+   deploy instead of surfacing later as missing columns. Change the schema by
+   adding a new `V<n>__name.sql`; never edit an applied one.
+
+   Deploying onto a database Hibernate already built? Set `FLYWAY_BASELINE=true`
+   for the first deploy so Flyway adopts it at V1 rather than trying to recreate
+   it, then remove the variable.
 5. **WebSocket subscribe authorisation.** Sends and REST reads check
    participation; `SUBSCRIBE` does not. A determined user could subscribe to a
    conversation topic they are not part of. Needs a `ChannelInterceptor` on CONNECT.

@@ -21,10 +21,15 @@ spring:
       enabled: true
       path: /h2-console
 
+  # Off for local H2: the migrations are PostgreSQL, and a dev database that
+  # can be deleted and rebuilt does not need versioning. Postgres gets it.
+  flyway:
+    enabled: false
+
   jpa:
     hibernate:
-      # Generated from the entities. Fine here; see the prod profile below for
-      # why this is a liability once a database holds real data.
+      # Fine for a disposable local database. Postgres uses Flyway instead —
+      # see the prod profile for why.
       ddl-auto: update
     open-in-view: false
     properties:
@@ -117,8 +122,14 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${DATABASE_USER:postgres}
     password: ${DATABASE_PASSWORD:postgres}
+  flyway:
+    enabled: true
+    # A database Hibernate already built is adopted at V1 rather than rebuilt.
+    baseline-on-migrate: true
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: validate
 
 ---
 # PRODUCTION. `--spring.profiles.active=prod`
@@ -133,6 +144,11 @@ spring:
   config:
     activate:
       on-profile: prod
+  flyway:
+    enabled: true
+    # Only for adopting a database Hibernate built before migrations existed.
+    # Leave false on a database that has always used Flyway.
+    baseline-on-migrate: ${FLYWAY_BASELINE:false}
   datasource:
     # Most platforms hand out host/port/name as separate variables and never a
     # jdbc: URL, so accept either shape: set DATABASE_URL yourself, or let it be
@@ -145,15 +161,11 @@ spring:
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      # `update` creates the schema on a FRESH database, which is what a first
-      # deploy needs. It is safe while the database is empty and increasingly
-      # not safe once it holds data you care about — Hibernate will happily add
-      # columns based on whatever the entities currently say.
-      #
-      # Before this database holds real bookings: add Flyway, generate a
-      # baseline migration from the live schema, and set this to `validate`.
-      # Tracked in the README's pre-launch list.
-      ddl-auto: ${DDL_AUTO:update}
+      # Flyway owns the schema. `validate` means Hibernate only checks that what
+      # the migrations built matches the entities, and refuses to start if it
+      # does not — a missing migration becomes a failed deploy instead of
+      # columns quietly missing at runtime. It never alters a live database.
+      ddl-auto: ${DDL_AUTO:validate}
     properties:
       hibernate:
         format_sql: false
