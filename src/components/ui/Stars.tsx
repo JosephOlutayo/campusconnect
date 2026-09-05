@@ -30,6 +30,21 @@ function StarRow({ color, className }: { color: string; className: string }) {
  */
 export function Stars({ rating, count, size = "md", showNumber = true, className = "" }: Props) {
   const clamped = Math.max(0, Math.min(5, rating));
+
+  // A provider nobody has reviewed yet. Five empty stars read as a score of
+  // zero rather than an absence of one, and the full row does not fit a card
+  // at its narrowest — the words alone are both clearer and shorter.
+  if (count === 0) {
+    return (
+      <span className={`inline-flex items-center gap-1.5 whitespace-nowrap ${className}`}>
+        {showNumber ? <span className="text-sm font-semibold text-ink">New</span> : null}
+        <span className="text-sm text-ink-muted">
+          {showNumber ? "· no reviews yet" : "No reviews yet"}
+        </span>
+      </span>
+    );
+  }
+
   return (
     <span className={`inline-flex items-center gap-1.5 ${className}`}>
       <span className="relative inline-block" aria-label={`${clamped.toFixed(1)} out of 5`}>

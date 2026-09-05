@@ -74,30 +74,32 @@ export function ProviderCard({ card, isFavorite = false, showFavorite = true }: 
         </div>
 
         <div className="mt-auto pt-4">
-          <div className="flex items-end justify-between gap-3 border-t border-line pt-3">
-            <div className="min-w-0">
+          <div className="border-t border-line pt-3">
+            <div className="flex items-center justify-between gap-3">
               <p className="text-lg leading-none font-bold text-ink">
                 {card.serviceCount > 1 ? (
                   <span className="text-xs font-medium text-ink-muted">from </span>
                 ) : null}
                 {formatCents(card.fromPriceCents)}
               </p>
-              <p className="mt-1.5 truncate text-xs font-medium">
-                {nextAvailable ? (
-                  <span className="text-success">
-                    Next: {formatRelativeDay(nextAvailable)} {formatTime(nextAvailable)}
-                  </span>
-                ) : (
-                  <span className="text-ink-muted">No openings this week</span>
-                )}
-              </p>
+              <Link
+                href={`/providers/${card.providerId}#book`}
+                className="inline-flex h-9 shrink-0 items-center rounded-xl bg-accent px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-accent-hover"
+              >
+                Book now
+              </Link>
             </div>
-            <Link
-              href={`/providers/${card.providerId}#book`}
-              className="inline-flex h-9 shrink-0 items-center rounded-xl bg-accent px-3.5 text-[13px] font-semibold text-white transition-colors hover:bg-accent-hover"
-            >
-              Book now
-            </Link>
+            {/* Its own row: beside the button this was squeezed to "Next: M…",
+                which tells the reader nothing. */}
+            <p className="mt-2 truncate text-xs font-medium">
+              {nextAvailable ? (
+                <span className="text-success">
+                  Next: {formatRelativeDay(nextAvailable)} {formatTime(nextAvailable)}
+                </span>
+              ) : (
+                <span className="text-ink-muted">No openings this week</span>
+              )}
+            </p>
           </div>
         </div>
       </div>
