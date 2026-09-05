@@ -158,6 +158,21 @@ With no `MAIL_HOST` set (local development), the app prints the verification
 link to the API console instead of sending it, so the flow can be tested with
 no email account.
 
+### Turning on real email
+
+1. Create an account with a sending provider — Resend, Postmark and SES all
+   speak plain SMTP, so any of them works without a code change.
+2. Add your sending domain there and publish the **SPF and DKIM** DNS records
+   it gives you. This is not optional: university mail systems are among the
+   strictest, and unauthenticated mail to a `.edu` address is usually binned
+   silently. That looks identical to the application being broken.
+3. Set `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD` and
+   `MAIL_FROM` (the from-address must be on the domain you just authenticated).
+4. Restart and check the log says `Mail: sending over SMTP via …`. If it says
+   the links are printed to the log, the host did not take.
+
+Locally, pass the same variables to `api/run-local.sh`.
+
 ## Before you go public
 
 These are ordered by how much they matter.
