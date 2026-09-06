@@ -53,6 +53,17 @@ services:
         sync: false
       - key: ADMIN_PASSWORD
         sync: false
+      # Lets the first deploy start before you own a sending domain. The site
+      # works and people can sign up, but nobody can confirm an email address,
+      # so the campus-verified badge cannot be earned. Delete this line and set
+      # MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD / MAIL_FROM once
+      # you have a domain.
+      - key: MAIL_OPTIONAL
+        value: "true"
+      # Verification links are built from this. Set it to the web service's
+      # public URL, the same value as CORS_ORIGINS.
+      - key: APP_URL
+        sync: false
 
   - type: web
     name: campusconnect-web
