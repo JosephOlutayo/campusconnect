@@ -18,10 +18,37 @@ export const metadata: Metadata = {
   },
   description:
     "Book barbers, braiders, tutors, photographers and more from students and pros around your campus.",
+
+  // iOS does not read the web manifest for any of this. Added to the home
+  // screen it launches fullscreen with no Safari chrome, using the icon named
+  // here rather than a screenshot of the page.
+  appleWebApp: {
+    capable: true,
+    title: APP_NAME,
+    // The canvas colour behind the status bar; "default" would leave it white
+    // and visibly detached from the page.
+    statusBarStyle: "default",
+  },
+  other: {
+    // Next emits the standard `mobile-web-app-capable`, which iOS honours from
+    // 16.4. Older iPhones only read the prefixed one, and without it the app
+    // opens in Safari with the address bar instead of fullscreen.
+    "apple-mobile-web-app-capable": "yes",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
   themeColor: "#ece7df",
+  // Installed to a home screen the app owns the whole screen, including the
+  // area behind the notch, so panes must respect the safe insets.
+  viewportFit: "cover",
   width: "device-width",
   initialScale: 1,
   // Students pinch-zoom provider photos; do not trap them at 1x.
