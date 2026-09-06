@@ -85,6 +85,10 @@ campusconnect:
   app-url: ${APP_URL:http://localhost:3100}
   mail:
     from: ${MAIL_FROM:CampusConnect <no-reply@localhost>}
+    # Lets production start with no mail server. Verification links then go to
+    # the log and nobody can earn the campus badge — a deliberate first-deploy
+    # compromise, not a setting to leave on.
+    optional: ${MAIL_OPTIONAL:false}
 
 # Health only. Nothing else from actuator is exposed — /env and /beans would
 # leak configuration including connection strings.

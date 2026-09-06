@@ -21,14 +21,37 @@ public class MailConfig {
 
     private static final Logger log = LoggerFactory.getLogger(MailConfig.class);
 
+    private static final String MAIL_DISABLED_NOTICE = String.join(System.lineSeparator(),
+            "",
+            "------------------------------------------------------------------",
+            "MAIL_OPTIONAL is set, so this production deployment starts with no",
+            "mail server.",
+            "",
+            "Verification links are written to this log and sent to nobody. People",
+            "can sign up and use the site, but nobody can confirm an address, so",
+            "the campus-verified badge cannot be earned.",
+            "",
+            "Set MAIL_HOST and drop MAIL_OPTIONAL before relying on that badge.",
+            "------------------------------------------------------------------");
+
     @Bean
     public Mailer mailer(JavaMailSender sender,
                          Environment environment,
                          @Value("${spring.mail.host:}") String host,
+                         @Value("${campusconnect.mail.optional:false}") boolean mailOptional,
                          @Value("${campusconnect.mail.from:CampusConnect <no-reply@localhost>}") String from) {
 
         boolean smtpConfigured = host != null && !host.isBlank();
         boolean isProduction = Arrays.asList(environment.getActiveProfiles()).contains("prod");
+
+        if (isProduction && !smtpConfigured && mailOptional) {
+            // Deliberate: a first deploy, before a sending domain exists. The
+            // site works and people can sign up; nobody can earn the campus
+            // badge, because the link proving the address goes to this log
+            // rather than to an inbox.
+            log.warn(MAIL_DISABLED_NOTICE);
+            return new LoggingMailer();
+        }
 
         if (isProduction && !smtpConfigured) {
             // In production the console mailer would mean every new account waits

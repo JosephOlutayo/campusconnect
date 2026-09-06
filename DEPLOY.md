@@ -38,6 +38,7 @@ other's URLs.
 | `ADMIN_EMAIL` | **yes** | The first admin account. Created on first boot only if no admin exists. |
 | `ADMIN_PASSWORD` | **yes** | 12+ characters; the app refuses a shorter one. This account can change everything. |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | **yes** | SMTP for verification emails. **The prod profile refuses to start without a host** — students would wait forever for a link that was never sent. |
+| `MAIL_OPTIONAL` | first deploy only | `true` lets it start with no mail server, for getting the site up before a sending domain exists. Links go to the log and nobody can earn the campus badge. Remove it once mail works. |
 | `MAIL_FROM` | **yes** | e.g. `CampusConnect <no-reply@yourdomain.com>`. Needs SPF and DKIM on that domain or campus mail servers will bin it. |
 | `APP_URL` | **yes** | Your frontend's public URL. Verification links are built from it, so a wrong value sends people to a dead link. |
 | `PORT` | usually auto | Most platforms inject this. |
