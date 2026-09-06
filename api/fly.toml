@@ -1,0 +1,49 @@
+# Fly.io configuration for the Java API.
+#
+#   cd api && fly launch --copy-config --no-deploy   (first time, to claim a name)
+#   fly deploy
+#
+# App names are globally unique across all of Fly, so `campusconnect-api` may
+# already be taken — `fly launch` will offer you another. Whatever you end up
+# with, the web app's API_BASE_URL and NEXT_PUBLIC_WS_URL must match it.
+
+app = "campusconnect-api"
+primary_region = "dfw"   # Dallas, nearest to UT Dallas
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  SPRING_PROFILES_ACTIVE = "prod"
+  # Lets the site run before a sending domain exists. Verification links go to
+  # the log instead of an inbox, so nobody can earn the campus badge yet.
+  # Remove this once MAIL_HOST is set.
+  MAIL_OPTIONAL = "true"
+  # Adopts a schema Hibernate created before Flyway existed. Only needed if you
+  # point this at such a database; harmless on a fresh one.
+  FLYWAY_BASELINE = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Suspend rather than stop: a suspended machine resumes in about a second,
+  # where a cold JVM start is closer to thirty.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Set this to 1 to keep the API always warm. It costs more, but live
+  # messaging drops every time the machine suspends.
+  min_machines_running = 0
+
+[[http_service.checks]]
+  method = "GET"
+  path = "/actuator/health"
+  interval = "30s"
+  timeout = "5s"
+  # A JVM plus Flyway migrations needs longer than a Node app to answer.
+  grace_period = "60s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # Spring Boot with Hibernate does not fit comfortably in 256mb. If the machine
+  # is killed on startup with an out-of-memory error, raise this to 1gb.
+  memory = "512mb"

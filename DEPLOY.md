@@ -122,10 +122,57 @@ Fine for showing the app to people; not a footing for real users.
    `NEXT_PUBLIC_WS_URL` to the Render URLs.
 3. Set `CORS_ORIGINS` on Render to the Vercel domain.
 
-### Fly.io
+### Fly.io (deploys from this folder — no GitHub needed)
 
-`fly launch` in `api/` and again at the root. Attach Fly Postgres to the API.
-Fly keeps the machine warm, which suits the WebSocket well.
+The only option here that does not require pushing to a Git host. `fly.toml`
+and `api/fly.toml` are already written; the CLI is at `~/.fly/bin/flyctl`.
+
+Fly asks for a payment card at signup even though a small app sits inside their
+low-usage allowances.
+
+```bash
+export PATH="$HOME/.fly/bin:$PATH"
+fly auth login                    # opens a browser
+
+# 1. The API. --copy-config keeps the settings already written here.
+cd api
+fly launch --copy-config --no-deploy
+#   App names are globally unique, so you may be given a different one.
+#   Whatever it is, use it in step 4.
+
+# 2. A database, attached to the API.
+fly postgres create --name campusconnect-db --region dfw
+fly postgres attach campusconnect-db
+#   This sets DATABASE_URL to a postgres:// URI. The app converts that to the
+#   jdbc: form itself — see DatabaseUrlNormalizer.
+
+# 3. The secrets. Never put these in fly.toml, which is committed.
+fly secrets set   CAMPUSCONNECT_JWT_SECRET="$(openssl rand -base64 48)"   ADMIN_EMAIL="you@example.com"   ADMIN_PASSWORD="at-least-twelve-characters"
+
+fly deploy
+#   Note the hostname it prints, e.g. campusconnect-api.fly.dev
+
+# 4. The website. If the API got a name other than campusconnect-api, edit
+#    fly.toml first: both NEXT_PUBLIC_WS_URL and API_BASE_URL name it.
+cd ..
+fly launch --copy-config --no-deploy
+fly deploy
+
+# 5. Point the API at the website, now that its URL exists.
+cd api
+fly secrets set   CORS_ORIGINS="https://campusconnect-web.fly.dev"   APP_URL="https://campusconnect-web.fly.dev"
+```
+
+Then open the website, sign in with `ADMIN_EMAIL`, and add your campuses.
+
+Two settings worth revisiting once it works. `min_machines_running = 0` lets
+the machines suspend when idle, which is cheap but drops live messaging until
+someone wakes them; set it to `1` on the API if that matters. And the API is
+given 512mb — if it is killed on startup with an out-of-memory error, raise
+`memory` in `api/fly.toml` to `1gb`.
+
+To ship a change afterwards: `fly deploy` from that folder. No commit or push
+required, though committing first is still the sane habit.
 
 ---
 
