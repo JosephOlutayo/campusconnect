@@ -29,18 +29,13 @@ services:
       # to start under `prod` with the published development default.
       - key: CAMPUSCONNECT_JWT_SECRET
         generateValue: true
-      # Render exposes the database as separate parts, so the prod profile
-      # composes the jdbc: URL from them.
-      - key: DATABASE_HOST
-        fromDatabase: { name: campusconnect-db, property: host }
-      - key: DATABASE_PORT
-        fromDatabase: { name: campusconnect-db, property: port }
-      - key: DATABASE_NAME
-        fromDatabase: { name: campusconnect-db, property: database }
-      - key: DATABASE_USER
-        fromDatabase: { name: campusconnect-db, property: user }
-      - key: DATABASE_PASSWORD
-        fromDatabase: { name: campusconnect-db, property: password }
+      # Render exposes the database as one postgres:// URI. It does NOT offer
+      # host or port as separate properties — only connectionString, user,
+      # password and database — so the URI is the whole connection.
+      # DatabaseUrlNormalizer converts it to the jdbc: form and pulls the
+      # credentials out of it before the DataSource is built.
+      - key: DATABASE_URL
+        fromDatabase: { name: campusconnect-db, property: connectionString }
       # The frontend's public origin, WITH scheme and no trailing slash:
       #   https://campusconnect-web.onrender.com
       # Browser requests are rejected until this matches exactly.
