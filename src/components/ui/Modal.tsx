@@ -21,21 +21,36 @@ const widths = { sm: "sm:max-w-md", md: "sm:max-w-lg", lg: "sm:max-w-2xl" };
 export function Modal({ open, onClose, title, description, children, footer, size = "md" }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Held in a ref so the effects below depend only on `open`. Callers pass an
+  // inline arrow for onClose, which is a new function on every render of the
+  // parent — and a parent re-renders on every keystroke of a form inside the
+  // modal. Depending on it re-ran the focus effect on each character typed and
+  // pulled focus out of the field being typed into.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Move focus into the panel when it opens, and only then.
+  useEffect(() => {
+    if (!open) return;
+    panelRef.current?.focus();
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     // Stop the page behind from scrolling under the sheet.
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previous;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
