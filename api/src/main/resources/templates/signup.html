@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create your account · CampusConnect</title>
+  <link rel="stylesheet" th:href="@{/css/campusconnect.css}">
+  <link rel="icon" th:href="@{/icon-192.png}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="brand" th:href="@{/}">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">CampusConnect</span>
+    </a>
+
+    <h1 style="font-size:1.5rem;font-weight:800">Create your account</h1>
+    <p class="small muted" style="margin:0.35rem 0 1.25rem">
+      Already have one?
+      <a th:href="@{/login}" style="color:var(--accent);font-weight:700">Sign in</a>
+    </p>
+
+    <p class="form-error" th:if="${error}" th:text="${error}">Something went wrong.</p>
+
+    <form th:action="@{/signup}" method="post">
+
+      <!-- Both choices create the same account; this only decides where you
+           land afterwards, so nobody is locked out of becoming a provider. -->
+      <div class="field">
+        <span class="field-label">I want to</span>
+        <div class="row" style="gap:0.5rem">
+          <label class="btn btn-secondary" style="flex:1;cursor:pointer">
+            <input type="radio" name="intent" value="STUDENT" checked
+                   th:checked="${intent == null or intent == 'STUDENT'}" style="margin-right:0.4rem">
+            Book a service
+          </label>
+          <label class="btn btn-secondary" style="flex:1;cursor:pointer">
+            <input type="radio" name="intent" value="PROVIDER"
+                   th:checked="${intent == 'PROVIDER'}" style="margin-right:0.4rem">
+            Offer a service
+          </label>
+        </div>
+      </div>
+
+      <label class="field">
+        <span class="field-label">Full name</span>
+        <input class="input" type="text" name="name" required minlength="2"
+               th:value="${name}" placeholder="Maya Thompson">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input class="input" type="email" name="email" required autocomplete="email"
+               th:value="${email}"
+               th:placeholder="${emailVerificationEnabled} ? 'you@university.edu' : 'you@example.com'">
+        <span class="hint"
+              th:text="${emailVerificationEnabled}
+                       ? 'Use your campus email to get the verified student badge.'
+                       : 'Any email you can access — a personal one is fine.'">
+          Any email you can access.
+        </span>
+      </label>
+
+      <!-- Before an admin adds a campus the dropdown would be empty and the
+           form unsubmittable, with nothing on screen saying why. -->
+      <div class="form-notice" th:if="${#lists.isEmpty(campuses)}">
+        <strong>No campuses are set up yet.</strong>
+        Sign-ups open once a campus has been added.
+      </div>
+
+      <label class="field" th:unless="${#lists.isEmpty(campuses)}">
+        <span class="field-label">University</span>
+        <select class="select" name="universityId" required>
+          <option value="">Select your university</option>
+          <option th:each="c : ${campuses}" th:value="${c.id}" th:text="${c.name}"
+                  th:selected="${selectedCampus != null and c.id.toString() == selectedCampus.toString()}">
+            University
+          </option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input class="input" type="password" name="password" required minlength="8"
+               autocomplete="new-password" placeholder="At least 8 characters">
+      </label>
+
+      <button class="btn btn-block" type="submit" data-busy="Creating…"
+              th:disabled="${#lists.isEmpty(campuses)}">Create account</button>
+    </form>
+
+    <p class="tiny muted" style="text-align:center;margin-top:1.25rem">
+      By creating an account you agree to our
+      <a th:href="@{/legal/terms}" style="text-decoration:underline">terms</a> and
+      <a th:href="@{/legal/privacy}" style="text-decoration:underline">privacy policy</a>.
+    </p>
+  </div>
+</div>
+<script th:src="@{/js/app.js}" defer></script>
+</body>
+</html>

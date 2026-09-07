@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · CampusConnect</title>
+  <link rel="stylesheet" th:href="@{/css/campusconnect.css}">
+  <link rel="icon" th:href="@{/icon-192.png}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-card">
+    <a class="brand" th:href="@{/}">
+      <span class="brand-mark">C</span>
+      <span class="brand-name">CampusConnect</span>
+    </a>
+
+    <h1 style="font-size:1.5rem;font-weight:800">Welcome back</h1>
+    <p class="small muted" style="margin:0.35rem 0 1.25rem">
+      New here?
+      <a th:href="@{/signup}" style="color:var(--accent);font-weight:700">Create an account</a>
+    </p>
+
+    <p class="form-error" th:if="${error}" th:text="${error}">Something went wrong.</p>
+
+    <form th:action="@{/login}" method="post">
+      <label class="field">
+        <span class="field-label">Email</span>
+        <input class="input" type="email" name="email" required autocomplete="email"
+               th:value="${email}" placeholder="you@example.com">
+      </label>
+      <label class="field">
+        <span class="field-label">Password</span>
+        <input class="input" type="password" name="password" required autocomplete="current-password"
+               placeholder="••••••••">
+      </label>
+      <button class="btn btn-block" type="submit" data-busy="Signing in…">Sign in</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>
