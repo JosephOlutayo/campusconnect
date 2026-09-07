@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="${provider.businessName} + ' · CampusConnect'">Provider</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/explore}">&larr; Back to explore</a>
+
+  <div class="card" style="overflow:hidden;margin-top:0.75rem">
+    <div style="height:120px"
+         th:style="'height:120px;background:linear-gradient(135deg,hsl(' + ${#strings.length(provider.businessName) * 37 % 360} + ',62%,58%),hsl(' + ${(#strings.length(provider.businessName) * 37 + 48) % 360} + ',58%,46%))'"></div>
+    <div class="card-pad">
+      <div class="row-between">
+        <div>
+          <h1 style="font-size:1.4rem;font-weight:800" th:text="${provider.businessName}">Business</h1>
+          <p class="small muted" style="margin:0.2rem 0 0" th:text="${provider.tagline}">Tagline</p>
+        </div>
+        <span class="badge badge-success" th:if="${provider.verified}">Verified</span>
+      </div>
+
+      <div class="chip-row">
+        <span class="chip" th:if="${provider.university != null}"
+              th:text="${provider.university.shortName}">UTD</span>
+        <span class="chip" th:text="${provider.locationLabel}">Near campus</span>
+        <span class="chip" th:if="${provider.autoConfirmBookings}">Instant booking</span>
+        <span class="chip" th:unless="${provider.autoConfirmBookings}">Provider confirms</span>
+      </div>
+
+      <p class="small" style="margin-top:0.9rem;line-height:1.5" th:text="${provider.bio}">About.</p>
+    </div>
+  </div>
+
+  <!-- Shown when the server rejected the booking, most often because the slot
+       went while this page was open. -->
+  <p class="form-error" style="margin-top:1rem" th:if="${bookingError}" th:text="${bookingError}">
+    That time was just booked.
+  </p>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.5rem 0 0.6rem">Book a service</h2>
+
+  <th:block th:if="${#lists.isEmpty(services)}">
+    <div th:replace="~{fragments :: empty('📋', 'No services listed yet',
+                     'This provider has not added anything bookable.')}"></div>
+  </th:block>
+
+  <th:block th:unless="${#lists.isEmpty(services)}">
+
+    <!-- Step 1: the service. Changing it reloads with the new duration, because
+         slot length depends on which service is being booked. -->
+    <form th:action="@{'/providers/' + ${provider.id}}" method="get" class="card card-pad">
+      <p class="field-label">1 &nbsp;Choose a service</p>
+      <div class="stack">
+        <label class="row" th:each="s : ${services}"
+               style="border:1px solid var(--line);border-radius:0.875rem;padding:0.7rem;cursor:pointer"
+               th:style="${chosenService != null and s.id == chosenService.id}
+                         ? 'border:1px solid var(--accent);background:var(--accent-soft);border-radius:0.875rem;padding:0.7rem;cursor:pointer'
+                         : 'border:1px solid var(--line);border-radius:0.875rem;padding:0.7rem;cursor:pointer'">
+          <input type="radio" name="service" th:value="${s.id}"
+                 th:checked="${chosenService != null and s.id == chosenService.id}"
+                 onchange="this.form.submit()">
+          <span style="flex:1">
+            <span style="font-weight:700" th:text="${s.title}">Haircut</span><br>
+            <span class="tiny muted" th:text="${s.durationMinutes} + ' min'">45 min</span>
+          </span>
+          <span class="price" th:text="'$' + ${#numbers.formatDecimal(s.priceCents / 100.0, 1, 2)}">$25</span>
+        </label>
+      </div>
+      <input type="hidden" name="date" th:value="${chosenDay}">
+    </form>
+
+    <!-- Step 2: the day. Also a GET, so a chosen day is in the URL. -->
+    <form th:action="@{'/providers/' + ${provider.id}}" method="get"
+          class="card card-pad" style="margin-top:0.9rem">
+      <p class="field-label">2 &nbsp;Pick a date</p>
+      <input type="hidden" name="service" th:value="${chosenService != null} ? ${chosenService.id} : ''">
+      <div style="display:flex;gap:0.4rem;overflow-x:auto;padding-bottom:0.25rem">
+        <button th:each="d : ${days}" type="submit" name="date" th:value="${d}"
+                class="btn btn-secondary btn-sm"
+                th:style="${d == chosenDay} ? 'background:var(--accent);color:#fff' : ''"
+                style="flex:0 0 auto;flex-direction:column;min-width:3.2rem">
+          <span class="tiny" th:text="${#temporals.format(d, 'EEE')}">Mon</span>
+          <span style="font-weight:800" th:text="${#temporals.day(d)}">7</span>
+        </button>
+      </div>
+    </form>
+
+    <!-- Step 3: the time. This one POSTs — it is the action that creates data. -->
+    <div class="card card-pad" style="margin-top:0.9rem">
+      <p class="field-label">
+        3 &nbsp;Pick a time
+        <span class="muted" th:text="'— ' + ${#temporals.format(chosenDay, 'EEEE d MMMM')}">— Monday</span>
+      </p>
+
+      <!-- Where the appointment happens. Only worth asking when the service
+           actually offers more than one option. -->
+      <label class="field" th:if="${#lists.size(locationModes) > 1}">
+        <span class="field-label">Where</span>
+        <select class="select" id="locationMode">
+          <option th:each="m : ${locationModes}" th:value="${m}" th:text="${m.label}">At provider</option>
+        </select>
+      </label>
+
+      <div th:if="${#lists.isEmpty(slots)}" class="empty" style="padding:1.5rem">
+        <p class="small muted" style="margin:0">Nothing open on this day. Try another date.</p>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem" th:unless="${#lists.isEmpty(slots)}">
+        <form th:each="slot : ${slots}" th:action="@{'/providers/' + ${provider.id} + '/book'}" method="post"
+              style="margin:0">
+          <input type="hidden" name="serviceId" th:value="${chosenService.id}">
+          <input type="hidden" name="startAt" th:value="${slot.startAt}">
+          <input type="hidden" name="locationMode" th:value="${!#lists.isEmpty(locationModes)} ? ${locationModes[0]} : ''">
+          <button class="btn btn-secondary btn-sm" type="submit" data-busy="Booking…"
+                  th:text="${#temporals.format(slot.startAt, 'h:mm a')}">10:00 AM</button>
+        </form>
+      </div>
+
+      <p class="tiny muted" style="margin-top:0.75rem" th:if="${currentUser == null}">
+        You will be asked to sign in before the booking is made.
+      </p>
+    </div>
+  </th:block>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">
+    Reviews
+    <span class="muted small" th:text="'(' + ${#lists.size(reviews)} + ')'">(0)</span>
+  </h2>
+
+  <th:block th:if="${#lists.isEmpty(reviews)}">
+    <div th:replace="~{fragments :: empty('⭐', 'No reviews yet',
+                     'Only students who completed an appointment can leave one.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(reviews)}">
+    <div class="card card-pad" th:each="r : ${reviews}">
+      <div class="row-between">
+        <strong class="small" th:text="${r.author != null} ? ${r.author.name} : 'Student'">Student</strong>
+        <span class="tiny" style="color:#f5a524" th:text="${r.rating} + '/5'">5/5</span>
+      </div>
+      <p class="small" style="margin:0.35rem 0 0" th:text="${r.body}">Great cut.</p>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

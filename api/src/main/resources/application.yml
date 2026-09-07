@@ -54,6 +54,11 @@ spring:
           starttls:
             enable: true
 
+  # Templates are cached by default, so a change needs a restart to appear.
+  # Off here and on in prod, where nothing edits them at runtime.
+  thymeleaf:
+    cache: false
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -176,6 +181,9 @@ spring:
   h2:
     console:
       enabled: false
+
+  thymeleaf:
+    cache: true
 
 campusconnect:
   seed: false

@@ -57,8 +57,23 @@
     });
   }
 
+  /*
+   * The booking form is one small form per time slot, so a single "where"
+   * chooser has to write its value into all of them. Without this the select
+   * looks like it works and every booking posts the first option.
+   */
+  function syncLocationMode() {
+    var chooser = document.getElementById("locationMode");
+    if (!chooser) return;
+    chooser.addEventListener("change", function () {
+      var inputs = document.querySelectorAll('input[name="locationMode"]');
+      for (var i = 0; i < inputs.length; i++) inputs[i].value = chooser.value;
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     trackKeyboard();
+    syncLocationMode();
     confirmDangerousForms();
     guardDoubleSubmit();
   });
