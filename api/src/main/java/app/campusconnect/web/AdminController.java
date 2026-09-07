@@ -126,7 +126,7 @@ public class AdminController {
                 throw ApiException.badRequest("Unknown role.");
             }
         }
-        return ApiResponse.ok(users.search(q == null || q.isBlank() ? null : q, parsed).stream()
+        return ApiResponse.ok(users.search(q == null || q.isBlank() ? "" : q.trim(), parsed).stream()
                 .map(user -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("id", user.getId().toString());

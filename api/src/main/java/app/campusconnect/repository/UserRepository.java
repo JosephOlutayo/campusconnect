@@ -23,7 +23,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("""
             select u from User u
             where (:role is null or u.role = :role)
-              and (:term is null or lower(u.name) like lower(concat('%', :term, '%'))
+              and (:term = '' or lower(u.name) like lower(concat('%', :term, '%'))
                    or lower(u.email) like lower(concat('%', :term, '%')))
             order by u.createdAt desc
             """)

@@ -41,7 +41,7 @@ public interface ServiceOfferingRepository extends JpaRepository<ServiceOffering
               and (:maxPrice is null or s.priceCents <= :maxPrice)
               and (:minRating is null or p.ratingAvg >= :minRating)
               and (:verifiedOnly = false or p.verified = true)
-              and (:term is null
+              and (:term = ''
                    or lower(s.title) like lower(concat('%', :term, '%'))
                    or lower(s.description) like lower(concat('%', :term, '%'))
                    or lower(p.businessName) like lower(concat('%', :term, '%'))

@@ -118,7 +118,8 @@ public class SearchService {
                 : impliedCategories;
 
         List<ServiceOffering> rows = services.search(
-                term, categoryIds, query.categorySlug(), query.universityId(),
+                // Never null — see the note on the query.
+                term == null ? "" : term, categoryIds, query.categorySlug(), query.universityId(),
                 query.minPriceCents(), query.maxPriceCents(), query.minRating(),
                 query.verifiedOnly(), ProviderStatus.ACTIVE);
 
