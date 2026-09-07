@@ -72,6 +72,36 @@ async function forward(request: NextRequest, path: string[]) {
     for (const cookie of cookies) responseHeaders.append("set-cookie", cookie);
   }
 
+  // Every caller in the app does `await response.json()` and reads `.ok` off the
+  // result. When something between here and the API answers with HTML instead —
+  // a platform's 502 while the API is starting, a proxy timeout page — that
+  // parse throws, and because the throw happens mid-handler the click appears to
+  // do nothing at all: no success, no error, no clue. Turning it into the
+  // envelope the callers already expect means a failure is always visible.
+  const contentType = upstream.headers.get("content-type") ?? "";
+  if (!contentType.includes("json")) {
+    const text = await upstream.text();
+    if (upstream.ok) {
+      // A success that isn't JSON is not something callers can use either.
+      return Response.json(
+        { ok: false, error: "The API returned an unexpected response." },
+        { status: 502 },
+      );
+    }
+    return Response.json(
+      {
+        ok: false,
+        error:
+          upstream.status === 502 || upstream.status === 503 || upstream.status === 504
+            ? "The server is still waking up. Wait a few seconds and try again."
+            : `The API returned ${upstream.status}.`,
+        // Kept short: enough to recognise the page, not a wall of HTML.
+        detail: text.slice(0, 200) || undefined,
+      },
+      { status: upstream.status, headers: responseHeaders },
+    );
+  }
+
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,

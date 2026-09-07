@@ -46,16 +46,26 @@ export function UniversityManager({ universities }: { universities: University[]
     setLoading(true);
     setError("");
 
-    const response = await fetch("/api/admin/universities", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        ...form,
-        latitude: Number(form.latitude),
-        longitude: Number(form.longitude),
-      }),
-    });
-    const payload = await response.json();
+    let payload: { ok?: boolean; error?: string };
+    try {
+      const response = await fetch("/api/admin/universities", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          latitude: Number(form.latitude),
+          longitude: Number(form.longitude),
+        }),
+      });
+      payload = await response.json();
+    } catch {
+      // Anything thrown here — the network dropping, a response that will not
+      // parse — used to escape this function, leaving the button spinning and
+      // the campus silently unsaved.
+      setLoading(false);
+      setError("Could not reach the server. Check your connection and try again.");
+      return;
+    }
 
     setLoading(false);
     if (!payload.ok) {
