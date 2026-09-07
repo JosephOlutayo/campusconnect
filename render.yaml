@@ -67,12 +67,16 @@ services:
     dockerContext: .
     plan: free
     envVars:
-      # Server-side rendering calls the API directly over Render's private network.
+      # Where server-side rendering reaches the API. Set this to the API's
+      # PUBLIC https:// URL.
+      #
+      # It used to come from `fromService … property: hostport`, meaning
+      # Render's internal address. That did not work — every page needing the
+      # API returned 500 while pages that tolerate it missing still rendered,
+      # which is a confusing way for it to fail. The public URL is one extra
+      # network hop and reliable.
       - key: API_BASE_URL
-        fromService:
-          name: campusconnect-api
-          type: web
-          property: hostport
+        sync: false
       # The WebSocket URL is baked into the browser bundle at BUILD time, so it
       # must be the API's public address:
       #   https://campusconnect-api.onrender.com/ws
