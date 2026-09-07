@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Appointments · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <h1 class="page-title">Appointments</h1>
+  <p class="page-sub">Everything you have booked.</p>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.5rem 0 0.6rem">Upcoming</h2>
+
+  <th:block th:if="${#lists.isEmpty(upcoming)}">
+    <div th:replace="~{fragments :: empty('📅', 'Nothing booked yet',
+                      'Find someone on Explore and pick a time that suits you.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(upcoming)}">
+    <a class="card card-pad" th:each="b : ${upcoming}" th:href="@{'/appointments/' + ${b.id}}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:800" th:text="${b.providerName}">Provider</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0" th:text="${b.serviceTitle}">Service</p>
+        </div>
+        <span class="badge"
+              th:classappend="${b.status == 'CONFIRMED'} ? 'badge-success' : (${b.status == 'PENDING'} ? 'badge-warning' : '')"
+              th:text="${b.status}">CONFIRMED</span>
+      </div>
+      <p class="small" style="margin:0.6rem 0 0"
+         th:text="${#temporals.format(b.startAt, 'EEEE d MMMM')} + ' at ' + ${#temporals.format(b.startAt, 'h:mm a')}">
+        Monday 7 September at 10:00 AM
+      </p>
+      <p class="tiny muted" style="margin:0.2rem 0 0"
+         th:text="${b.locationLabel} + ' · $' + ${#numbers.formatDecimal(b.priceCents / 100.0, 1, 2)}">
+        Near campus · $25.00
+      </p>
+    </a>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">Past</h2>
+
+  <th:block th:if="${#lists.isEmpty(past)}">
+    <div th:replace="~{fragments :: empty('🗂️', 'Nothing here yet',
+                      'Completed and cancelled appointments show up here.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(past)}">
+    <a class="card card-pad" th:each="b : ${past}" th:href="@{'/appointments/' + ${b.id}}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700" th:text="${b.providerName}">Provider</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${b.serviceTitle} + ' · ' + ${#temporals.format(b.startAt, 'd MMM yyyy')}">
+            Service · 7 Sep 2026
+          </p>
+        </div>
+        <span class="badge" th:text="${b.status}">COMPLETED</span>
+      </div>
+    </a>
+  </div>
+
+</main>
+</body>
+</html>

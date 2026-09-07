@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="'Appointment ' + ${booking.code} + ' · CampusConnect'">Appointment</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/appointments}">&larr; All appointments</a>
+
+  <p class="form-error" style="margin-top:0.75rem" th:if="${cancelError}" th:text="${cancelError}">
+    Could not cancel.
+  </p>
+
+  <div class="card card-pad" style="margin-top:0.75rem">
+    <div class="row-between">
+      <div>
+        <p class="eyebrow" th:text="'Booking ' + ${booking.code}">Booking CC-XXXX</p>
+        <h1 style="font-size:1.35rem;font-weight:800" th:text="${booking.serviceTitle}">Service</h1>
+        <p class="small muted" style="margin:0.2rem 0 0">
+          with
+          <a style="color:var(--accent);font-weight:700"
+             th:href="@{'/providers/' + ${booking.providerId}}"
+             th:text="${booking.providerName}">Provider</a>
+        </p>
+      </div>
+      <span class="badge"
+            th:classappend="${booking.status == 'CONFIRMED'} ? 'badge-success' : (${booking.status == 'PENDING'} ? 'badge-warning' : (${booking.status == 'CANCELLED'} ? 'badge-danger' : ''))"
+            th:text="${booking.status}">CONFIRMED</span>
+    </div>
+
+    <dl style="margin:1.25rem 0 0;display:grid;gap:0.75rem">
+      <div class="row-between">
+        <dt class="small muted">When</dt>
+        <dd class="small" style="margin:0;font-weight:700;text-align:right"
+            th:text="${#temporals.format(booking.startAt, 'EEEE d MMMM')} + ', ' + ${#temporals.format(booking.startAt, 'h:mm a')} + ' – ' + ${#temporals.format(booking.endAt, 'h:mm a')}">
+          Monday, 10:00 AM – 10:45 AM
+        </dd>
+      </div>
+
+      <div class="row-between">
+        <dt class="small muted">Where</dt>
+        <dd class="small" style="margin:0;text-align:right" th:text="${booking.locationLabel}">Near campus</dd>
+      </div>
+
+      <!-- The mapper releases the exact address only to the customer, and only
+           once the booking is confirmed. When it is absent, say why rather than
+           leaving a gap that reads as missing data. -->
+      <div class="row-between" th:if="${isCustomer}">
+        <dt class="small muted">Address</dt>
+        <dd class="small" style="margin:0;text-align:right;font-weight:700"
+            th:if="${booking.exactAddress != null}" th:text="${booking.exactAddress}">12 Somewhere St</dd>
+        <!-- Two different reasons it can be missing, and saying the wrong one
+             is worse than saying nothing: the booking may not be confirmed yet,
+             or the provider may simply never have given an address. -->
+        <dd class="small muted" style="margin:0;text-align:right"
+            th:unless="${booking.exactAddress != null}"
+            th:text="${booking.status == 'CONFIRMED'}
+                     ? 'The provider has not added one'
+                     : 'Shared once the booking is confirmed'">Shared once confirmed</dd>
+      </div>
+
+      <div class="row-between">
+        <dt class="small muted">Price</dt>
+        <dd class="small" style="margin:0;font-weight:800;text-align:right"
+            th:text="'$' + ${#numbers.formatDecimal(booking.priceCents / 100.0, 1, 2)}">$25.00</dd>
+      </div>
+
+      <div class="row-between" th:if="${booking.customerNote != null and !#strings.isEmpty(booking.customerNote)}">
+        <dt class="small muted">Your note</dt>
+        <dd class="small" style="margin:0;text-align:right" th:text="${booking.customerNote}">Note</dd>
+      </div>
+
+      <div class="row-between" th:if="${booking.cancellationReason != null}">
+        <dt class="small muted">Reason</dt>
+        <dd class="small" style="margin:0;text-align:right" th:text="${booking.cancellationReason}">Reason</dd>
+      </div>
+    </dl>
+  </div>
+
+  <div class="card card-pad" style="margin-top:0.9rem">
+    <p class="field-label">Payment</p>
+    <div class="row-between">
+      <span class="small muted">Service</span>
+      <span class="small" th:text="'$' + ${#numbers.formatDecimal(booking.priceCents / 100.0, 1, 2)}">$25.00</span>
+    </div>
+    <div class="row-between" style="margin-top:0.35rem">
+      <span class="small muted">Platform fee</span>
+      <span class="small" th:text="'$' + ${#numbers.formatDecimal(booking.platformFeeCents / 100.0, 1, 2)}">$2.50</span>
+    </div>
+    <div class="row-between" style="margin-top:0.35rem">
+      <span class="small muted">Provider receives</span>
+      <span class="small" th:text="'$' + ${#numbers.formatDecimal(booking.providerPayoutCents / 100.0, 1, 2)}">$22.50</span>
+    </div>
+    <!-- Said plainly, because the fee split above looks like money moving. -->
+    <p class="form-notice" style="margin:0.9rem 0 0">
+      Payment is arranged directly with the provider. No card is charged here yet.
+    </p>
+  </div>
+
+  <form th:action="@{'/appointments/' + ${booking.id} + '/cancel'}" method="post"
+        style="margin-top:0.9rem"
+        th:if="${isCustomer and (booking.status == 'PENDING' or booking.status == 'CONFIRMED')}"
+        data-confirm="Cancel this appointment? This cannot be undone.">
+    <label class="field">
+      <span class="field-label">Cancelling? Let them know why (optional)</span>
+      <input class="input" type="text" name="reason" maxlength="200" placeholder="Something came up">
+    </label>
+    <button class="btn btn-danger btn-block" type="submit" data-busy="Cancelling…">
+      Cancel appointment
+    </button>
+  </form>
+
+</main>
+</body>
+</html>
