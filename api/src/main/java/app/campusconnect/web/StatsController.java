@@ -38,6 +38,7 @@ public class StatsController {
     private final NotificationRepository notifications;
     private final UserRepository users;
     private final SettingsService settingsService;
+    private final app.campusconnect.service.Mailer mailer;
     private final PaymentService paymentService;
 
     public StatsController(ProviderProfileRepository providers, ServiceOfferingRepository services,
@@ -45,7 +46,8 @@ public class StatsController {
                            ReviewRepository reviews, FavoriteRepository favorites,
                            MessageRepository messages, NotificationRepository notifications,
                            UserRepository users,
-                           SettingsService settingsService, PaymentService paymentService) {
+                           SettingsService settingsService, PaymentService paymentService,
+                           app.campusconnect.service.Mailer mailer) {
         this.providers = providers;
         this.services = services;
         this.bookings = bookings;
@@ -57,6 +59,7 @@ public class StatsController {
         this.users = users;
         this.settingsService = settingsService;
         this.paymentService = paymentService;
+        this.mailer = mailer;
     }
 
     /**
@@ -144,6 +147,10 @@ public class StatsController {
         // gone those buttons only produce "email and password do not match",
         // which reads as a broken login rather than a missing account.
         row.put("demoAccountsAvailable", users.existsByEmailIgnoreCase(DEMO_ADMIN_EMAIL));
+        // No mail server means a confirmation link goes to a log file nobody
+        // reads. Sign-up must not tell people to use an address they will be
+        // asked to confirm, and the "check your inbox" banner must not appear.
+        row.put("emailVerificationEnabled", mailer.deliversToInbox());
         return ApiResponse.ok(row);
     }
 

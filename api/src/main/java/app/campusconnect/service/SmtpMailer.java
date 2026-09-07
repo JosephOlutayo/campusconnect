@@ -46,6 +46,11 @@ public class SmtpMailer implements Mailer {
     }
 
     @Override
+    public boolean deliversToInbox() {
+        return true;
+    }
+
+    @Override
     public String describe() {
         return "SMTP as " + from;
     }

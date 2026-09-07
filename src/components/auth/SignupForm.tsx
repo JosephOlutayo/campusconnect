@@ -9,7 +9,13 @@ import { FormError, Select, TextField } from "@/components/ui/Form";
 
 type University = { id: string; name: string; shortName: string };
 
-export function SignupForm({ universities }: { universities: University[] }) {
+export function SignupForm({
+  universities,
+  emailVerificationEnabled = false,
+}: {
+  universities: University[];
+  emailVerificationEnabled?: boolean;
+}) {
   const router = useRouter();
   const [intent, setIntent] = useState<"STUDENT" | "PROVIDER">("STUDENT");
   const [form, setForm] = useState({ name: "", email: "", password: "", universityId: "" });
@@ -96,8 +102,12 @@ export function SignupForm({ universities }: { universities: University[] }) {
           required
           value={form.email}
           onChange={update("email")}
-          placeholder="you@university.edu"
-          hint="Use your campus email to get the verified student badge."
+          placeholder={emailVerificationEnabled ? "you@university.edu" : "you@example.com"}
+          hint={
+            emailVerificationEnabled
+              ? "Use your campus email to get the verified student badge."
+              : "Any email you can access — a personal one is fine."
+          }
         />
         {universities.length === 0 ? (
           /* Before an admin adds a campus the dropdown is empty and the form

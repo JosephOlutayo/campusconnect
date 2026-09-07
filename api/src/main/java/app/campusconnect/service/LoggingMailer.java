@@ -32,6 +32,11 @@ public class LoggingMailer implements Mailer {
     }
 
     @Override
+    public boolean deliversToInbox() {
+        return false;
+    }
+
+    @Override
     public String describe() {
         return "console (no email is actually sent)";
     }

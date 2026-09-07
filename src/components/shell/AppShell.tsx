@@ -23,6 +23,11 @@ export async function AppShell({ children, area = "app" }: Props) {
 
   // One call covers every badge in the sidebar and tab bar.
   const summary = user ? await apiGetOrNull<MeSummary>("/api/stats/me") : null;
+  // Telling someone to confirm their email is only fair when a link can
+  // actually reach them. With no mail server the link goes to a log file.
+  const publicSettings = user
+    ? await apiGetOrNull<{ emailVerificationEnabled?: boolean }>("/api/stats/settings")
+    : null;
   const counts: BadgeCounts = {
     messages: summary?.unreadMessages ?? 0,
     notifications: summary?.unreadNotifications ?? 0,
@@ -103,7 +108,7 @@ export async function AppShell({ children, area = "app" }: Props) {
           </header>
 
           <main className="min-w-0 flex-1 px-4 pt-5 pb-28 sm:px-6 md:px-8 md:pt-7 md:pb-10">
-            {user && !user.emailVerified ? (
+            {user && !user.emailVerified && publicSettings?.emailVerificationEnabled ? (
               <div className="mb-5">
                 <VerifyEmailBanner email={user.email} />
               </div>
