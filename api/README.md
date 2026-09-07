@@ -1,11 +1,13 @@
-# CampusConnect API (Java / Spring Boot)
+# CampusConnect (Java / Spring Boot)
 
-The backend for CampusConnect: Java 21, Spring Boot 3.3, Spring Data JPA
-(Hibernate), Spring Security + JWT, and STOMP over WebSocket for live messaging.
+The whole application: Java 21, Spring Boot 3.3, Spring Data JPA (Hibernate),
+Spring Security + JWT, Thymeleaf for the pages, and STOMP over WebSocket.
 
-It exposes a REST API that the existing Next.js client consumes. The response
-envelope (`{ok, data, error}`) is deliberately identical to the TypeScript
-backend it replaces, so the client changes base URL rather than every fetch call.
+One process serves both. The pages are rendered by controllers in `view/`,
+which call the same services as the REST controllers in `web/` — no HTTP hop
+between them, since they are the same process. The REST API stays because it is
+genuinely used, by the STOMP client and by anything that wants JSON; its
+envelope is `{ok, data, error}`.
 
 ---
 
@@ -204,7 +206,7 @@ so participation checks cannot diverge between them.
 | --- | --- | --- |
 | `CAMPUSCONNECT_JWT_SECRET` | dev value | 32+ chars. **Must be set in production.** |
 | `campusconnect.platform-fee-percent` | 10 | Starting fee; the admin console overrides it at runtime |
-| `campusconnect.cors-origins` | localhost:3000,3100 | Where the Next.js client runs |
+| `campusconnect.cors-origins` | localhost:3000,3100 | Only for clients on another origin; the browser is same-origin |
 | `campusconnect.seed` | true | Set false to disable demo seeding |
 | `STRIPE_SECRET_KEY` | _(unset)_ | Switches the gateway from mock to Stripe |
 | `DATABASE_URL` / `DATABASE_USER` / `DATABASE_PASSWORD` | — | Used by the `postgres` profile |

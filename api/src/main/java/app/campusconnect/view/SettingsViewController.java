@@ -113,8 +113,10 @@ public class SettingsViewController {
         return back(null, "Profile saved.");
     }
 
+    /*
+     * Deliberately not @Transactional — see the note on verifyEmail.
+     */
     @PostMapping("/settings/resend-verification")
-    @Transactional
     public String resendVerification(@CurrentUser AuthenticatedUser me) {
         if (me == null) {
             return "redirect:/login?next=/settings";
@@ -131,8 +133,8 @@ public class SettingsViewController {
         }
     }
 
+    /* Deliberately not @Transactional — see the note on verifyEmail. */
     @PostMapping("/settings/email")
-    @Transactional
     public String changeEmail(@RequestParam String newEmail,
                               @RequestParam String password,
                               @CurrentUser AuthenticatedUser me) {
@@ -151,9 +153,16 @@ public class SettingsViewController {
         }
     }
 
-    /** Where a verification email lands. Public by design — see the class note. */
+    /**
+     * Where a verification email lands. Public by design — see the class note.
+     *
+     * Deliberately not @Transactional. EmailVerificationService.consume runs its
+     * own transaction; opening one here too means a bad token marks the shared
+     * transaction rollback-only, and catching the exception then fails the
+     * commit with UnexpectedRollbackException — a 500 in place of
+     * "that link has expired, ask for a new one".
+     */
     @GetMapping("/verify-email")
-    @Transactional
     public String verifyEmail(@RequestParam(required = false) String token, Model model) {
         model.addAttribute("active", "settings");
         try {

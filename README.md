@@ -5,36 +5,36 @@ offered by other students and local providers around their campus — barbers,
 braiders, nail techs, tutors, photographers, trainers, detailers, tailors, DJs and
 more.
 
-The product name lives in one place (`NEXT_PUBLIC_APP_NAME`), so renaming it is an
-env change, not a refactor.
+The product name lives in one place (`campusconnect.app-name`), so renaming it is
+a config change, not a refactor.
 
 ---
 
 ## Architecture
 
-Two processes, one application:
+One Java process serves everything:
 
 ```
-browser ──► Next.js (:3100) ──► Java Spring Boot API (:8080) ──► H2 / Postgres
-             │  React UI            REST + STOMP
-             │  /api/[...path]
-             └─ proxies every API call so the session cookie stays first-party
+browser ──► Spring Boot (:8080) ──► H2 / Postgres
+             │  Thymeleaf pages
+             │  REST + STOMP under /api and /ws
+             └─ same origin, so the session cookie is first-party
                 and there is no CORS anywhere
 ```
 
-The **only** exception to the proxy is the WebSocket, which connects straight to
-the Java server — Next.js route handlers cannot proxy an upgrade, and the STOMP
-endpoint allows the frontend origin explicitly.
+Pages are rendered server-side by controllers in `view/`, which call the same
+services the REST controllers in `web/` call — no HTTP hop between the two, since
+they are the same process. The REST API stays because it is genuinely used: by
+the STOMP client, and by anything that wants JSON.
 
-Server components call the API directly (no proxy hop) via `src/lib/api.ts`,
-forwarding the browser's `cc_token` cookie so a server-rendered page sees the same
-user the browser does.
+JavaScript is progressive enhancement only (`static/js/app.js`: confirm dialogs,
+a double-submit guard, the tab bar). Every page works with it switched off.
 
 | Layer | Choice |
 | --- | --- |
-| Backend | Java 21, Spring Boot 3.3, Spring Data JPA (Hibernate), Spring Security + JWT, STOMP/WebSocket |
-| Database | H2 file mode locally, PostgreSQL via the `postgres` profile |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind v4 |
+| Application | Java 21, Spring Boot 3.3, Spring Data JPA (Hibernate), Spring Security + JWT, STOMP/WebSocket |
+| Pages | Thymeleaf templates, hand-written CSS |
+| Database | H2 file mode locally, PostgreSQL via `DATABASE_URL` |
 | Payments | Stripe Connect architecture, mock gateway active |
 
 Full backend documentation is in **[api/README.md](api/README.md)** — the slot
@@ -45,84 +45,51 @@ explained there.
 
 ## Run it locally
 
-Start the API first — the frontend reads everything from it.
-
-**Terminal 1 — the API** (port 8080):
-
 ```bash
 cd api
-JAVA_HOME=/c/Users/josep/tools/jdk-21 PATH="$JAVA_HOME/bin:/c/Users/josep/tools/maven/bin:$PATH" mvn spring-boot:run
+./run-local.sh
 ```
 
-**Terminal 2 — the frontend** (port 3100):
+Open <http://localhost:8080>.
 
-```bash
-npm install
-npm run dev -- -p 3100
-```
+There is nothing else to install: the app runs against an embedded H2 database,
+and a portable JDK 21 + Maven live in `C:\Users\josep\tools` (no system-wide
+install, no admin rights used).
 
-Open <http://localhost:3100>.
+### First run on an empty database
 
-There is nothing else to install: the API seeds itself on first run against an
-embedded H2 database, and a portable JDK 21 + Maven live in
-`C:\Users\josep\tools` (no system-wide install, no admin rights used).
-
-### Demo accounts
-
-Password for all of them: `password123`
-
-| Account | Email | What it shows |
-| --- | --- | --- |
-| Student | `student@campusconnect.dev` | Bookings, saved providers, live messages, a review waiting to be written |
-| Provider | `marcus@utdallas.edu` | Campus Cuts — instant-booking provider dashboard |
-| Provider | `tia@utdallas.edu` | Braids by Tia — manual approval, so requests queue up |
-| Admin | `admin@campusconnect.dev` | Moderation console, marketplace fee, campuses |
-
-The login screen has one-tap buttons for each.
+Production seeds no demo data. Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` and the
+first administrator is created at startup — without one, nobody can add a
+university, and without a university nobody can sign up at all.
 
 ### Scripts
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Frontend dev server |
-| `npm run build` | Production build |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run lint` | ESLint |
-| `mvn spring-boot:run` (in `api/`) | API |
-| `mvn spring-boot:run -Dspring-boot.run.arguments=--seed=reset` | Wipe and reseed |
+| `./run-local.sh` (in `api/`) | Run the app |
+| `mvn spring-boot:run -Dspring-boot.run.arguments=--seed=reset` | Wipe and reseed demo data |
 | `mvn test` (in `api/`) | Java unit tests |
+| `./go-live.sh` | Serve this machine to the internet through one Cloudflare tunnel |
 
 ---
 
 ## What is where
 
 ```
-api/                        Java Spring Boot backend (see api/README.md)
+api/
   src/main/java/app/campusconnect/
     domain/                 18 JPA entities
     repository/             Spring Data interfaces
     service/                SlotEngine, BookingService, SearchService, ...
     security/               JWT filter, Spring Security config
     web/                    REST controllers + DTOs
+    view/                   the page controllers
     seed/                   demo data
-src/
-  app/
-    api/[...path]/          the proxy to Java — the only route handler left
-    (main)/                 student app
-    (auth)/                 login and signup
-    provider/               provider workspace
-    admin/                  moderation console
-  components/               UI — unchanged by the backend swap
-  lib/
-    api.ts                  server-side API client + session
-    types.ts                TypeScript mirrors of the Java DTOs
-    guards.ts               page-level access guards
-    time.ts money.ts geo.ts avatar.ts    pure formatting helpers
+  src/main/resources/
+    templates/              Thymeleaf pages
+      provider/  admin/  legal/
+    static/css  static/js   hand-written CSS, progressive-enhancement JS
 ```
-
-The UI components did not change when the backend moved from TypeScript to Java.
-What changed is everything underneath them: `lib/api.ts` replaced direct database
-access, and `lib/types.ts` mirrors the Java DTOs.
 
 ---
 
@@ -140,11 +107,7 @@ Eighteen entities. The ones that carry the real rules:
 - **`ProviderProfile.ratingAvg`** is denormalised for sorting and recomputed from
   visible reviews on every write that can change it.
 
-Switching to PostgreSQL is a profile change:
-
-```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=postgres
-```
+Postgres is picked up automatically from `DATABASE_URL`.
 
 ---
 
@@ -167,30 +130,30 @@ belongs to you and has not been reviewed.
 customer who booked, and only once the booking is CONFIRMED. The rule lives in the
 DTO mapper so no controller can forget it.
 
-**Live messaging.** Messages are persisted first, then broadcast over STOMP — a
-dropped socket costs a live update, never a message.
+**Email verification is real.** The campus badge is granted only when a link sent
+to that address has been followed. Matching the domain alone proved forgeable —
+you can sign up with an address you do not own.
 
 ---
 
 ## Environment
 
-Frontend (`.env`):
+See [api/README.md](api/README.md). The ones that matter in production:
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `API_BASE_URL` | `http://localhost:8080` | Where the Java API lives |
-| `NEXT_PUBLIC_WS_URL` | `http://localhost:8080/ws` | STOMP endpoint for the browser |
-| `NEXT_PUBLIC_APP_NAME` | CampusConnect | Product name |
-
-API — see [api/README.md](api/README.md). The one that matters in production is
-`CAMPUSCONNECT_JWT_SECRET`.
+| Variable | Purpose |
+| --- | --- |
+| `CAMPUSCONNECT_JWT_SECRET` | The app refuses to start under `prod` with the development default |
+| `DATABASE_URL` | A `postgres://` URI is converted to JDBC form at startup |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | The first administrator, created on an empty database |
+| `APP_URL` | The public origin verification links point at |
+| `MAIL_*` | SMTP. Without it, links are printed to the log instead of sent |
 
 ### API keys you would need before launch
 
 None to run or demo this. Before taking real money or sending real notifications:
 
 - **Stripe** (secret, publishable, webhook secret, Connect enabled) — payments and payouts
-- **An email provider** (Resend, Postmark or SES) — verification and booking emails
+- **An email provider** (Resend, Postmark or SES) plus a sending domain
 - **Twilio or similar** — SMS reminders, if you want them
 - **Cloudinary / Supabase Storage / S3** — real photo uploads
 - **Mapbox or Google Maps** — only for a real map; distances work today without one
@@ -199,23 +162,19 @@ None to run or demo this. Before taking real money or sending real notifications
 
 ## Verification
 
-- `mvn test` — 23 Java unit tests over the slot engine and the fee split.
-- `npm run typecheck` and `npm run lint` — both clean.
-- A **77-assertion end-to-end script** driven over real HTTP **through the
-  Next.js proxy**, so it exercises the browser's actual path: signup, login, JWT,
-  search, availability, booking, sequential **and concurrent** double-booking
-  prevention, provider booking management, reviews, messaging, favourites,
-  provider self-service, reporting, admin moderation and logout. All passing.
-- All 41 pages render 200 as student, provider and admin.
-- Live messaging verified by sending a message from outside the browser and
-  watching it arrive with no refresh.
+- `mvn test` — Java unit tests over the slot engine and the fee split.
+- An end-to-end script driven over real HTTP: signup, login, JWT, search,
+  availability, booking, sequential **and concurrent** double-booking prevention,
+  provider booking management, reviews, messaging, favourites, provider
+  self-service, reporting, admin moderation and logout.
 
 Bugs found by running it rather than reading it: `LazyInitializationException`
 across the API (DTO mapping outside the transaction), bookings failing because
 `REQUIRES_NEW` returns a detached entity, Spring Security returning unparseable
 empty 401 bodies, `/api/stats/campus` not being public so the home page 500'd for
-signed-out visitors, and a seed bug that made every provider look like it joined
-this week.
+signed-out visitors, a Postgres-only search failure from an untyped null
+parameter, and the HTML admin console requiring only *a* signed-in account rather
+than an administrator.
 
 ---
 
@@ -223,14 +182,14 @@ this week.
 
 - **Real payments.** Architecture complete, mock gateway active, Stripe SDK calls
   unimplemented. Provider Connect onboarding does not exist.
-- **Email / SMS / push.** `NotificationService` is the single fan-out point and
-  writes in-app rows today.
+- **Live message updates in the browser.** Messages are stored and broadcast over
+  STOMP, but the server-rendered thread refreshes on send rather than streaming.
+- **Email / SMS / push fan-out.** `NotificationService` writes in-app rows;
+  verification email is the one thing that actually sends.
 - **WebSocket subscribe-time authorisation.** Sends and REST reads are checked;
   locking down `SUBSCRIBE` needs a `ChannelInterceptor` on the CONNECT frame.
 - **Real image uploads.** Portfolio images render deterministic gradients.
 - **Google sign-in.** Columns exist; the OAuth flow does not.
-- **Flyway migrations** — the API currently runs `ddl-auto: update`. Switch to
-  `validate` before anything real ships.
 - **Timezones.** Availability is interpreted in the server's local zone, correct
   while the platform serves one region.
 - **Search at scale.** Indexed filtering in SQL, ranking in memory over a bounded

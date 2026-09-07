@@ -1,10 +1,15 @@
-# Render Blueprint: provisions Postgres, the Java API and the Next.js frontend.
+# Render Blueprint: provisions Postgres and the CampusConnect application.
 #
 #   Render Dashboard -> New -> Blueprint -> pick this repository
 #
-# Several values are deliberately left blank (`sync: false`), so Render prompts
-# for them rather than this file carrying them: the services' public URLs, which
-# do not exist until the first deploy, and the first administrator's credentials.
+# One web service. The Java app serves the HTML pages and the JSON API from the
+# same process, so there is no second origin to keep in step — the two-service
+# split, and the CORS and WebSocket URLs that came with it, are gone. Those were
+# the settings that broke the first two deploys.
+#
+# Values marked `sync: false` are deliberately blank so Render prompts for them
+# rather than this file carrying them: the service's public URL, which does not
+# exist until the first deploy, and the first administrator's credentials.
 
 databases:
   - name: campusconnect-db
@@ -14,7 +19,7 @@ databases:
 
 services:
   - type: web
-    name: campusconnect-api
+    name: campusconnect
     runtime: docker
     dockerfilePath: ./api/Dockerfile
     dockerContext: ./api
@@ -36,11 +41,6 @@ services:
       # credentials out of it before the DataSource is built.
       - key: DATABASE_URL
         fromDatabase: { name: campusconnect-db, property: connectionString }
-      # The frontend's public origin, WITH scheme and no trailing slash:
-      #   https://campusconnect-web.onrender.com
-      # Browser requests are rejected until this matches exactly.
-      - key: CORS_ORIGINS
-        sync: false
       # The first administrator. Demo data is off in production, so without
       # these nobody can sign in to add universities — and without a university
       # nobody can sign up at all. Password must be 12+ characters.
@@ -55,31 +55,8 @@ services:
       # you have a domain.
       - key: MAIL_OPTIONAL
         value: "true"
-      # Verification links are built from this. Set it to the web service's
-      # public URL, the same value as CORS_ORIGINS.
+      # Verification links are built from this. Set it to this service's own
+      # public URL, with scheme and no trailing slash:
+      #   https://campusconnect.onrender.com
       - key: APP_URL
-        sync: false
-
-  - type: web
-    name: campusconnect-web
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    plan: free
-    envVars:
-      # Where server-side rendering reaches the API. Set this to the API's
-      # PUBLIC https:// URL.
-      #
-      # It used to come from `fromService … property: hostport`, meaning
-      # Render's internal address. That did not work — every page needing the
-      # API returned 500 while pages that tolerate it missing still rendered,
-      # which is a confusing way for it to fail. The public URL is one extra
-      # network hop and reliable.
-      - key: API_BASE_URL
-        sync: false
-      # The WebSocket URL is baked into the browser bundle at BUILD time, so it
-      # must be the API's public address:
-      #   https://campusconnect-api.onrender.com/ws
-      # Get this wrong and everything works except live messaging, silently.
-      - key: NEXT_PUBLIC_WS_URL
         sync: false

@@ -7,18 +7,19 @@ it is not optional.
 
 ## What has to be deployed
 
-Three things, and they are not all the same kind of thing:
+Two things:
 
 | Piece | Needs | Suggested host |
 | --- | --- | --- |
-| Java API | A JVM or container runtime, always-on (it holds WebSocket connections) | Railway, Render, Fly.io, Heroku |
-| Next.js frontend | Node runtime | Vercel, Railway, Render |
+| The application | A JVM or container runtime, always-on (it holds WebSocket connections) | Render, Railway, Fly.io, Heroku |
 | PostgreSQL | Managed database | Neon, Supabase, Railway, Render |
 
-**The API cannot go on Vercel.** Vercel runs serverless functions; this API is a
-long-lived JVM process holding STOMP WebSocket connections. Frontend on Vercel +
-API on Railway/Render/Fly is a normal split, and the two only need to know each
-other's URLs.
+**It cannot go on Vercel.** Vercel runs serverless functions; this is a
+long-lived JVM process holding STOMP WebSocket connections.
+
+The pages and the API come from the same process, so there is no second origin,
+no `CORS_ORIGINS` to keep in step, and no build-time WebSocket URL to get wrong.
+Those three settings caused the first two failed deploys of this project.
 
 ---
 
@@ -34,43 +35,38 @@ other's URLs.
 | `DATABASE_HOST` / `DATABASE_PORT` / `DATABASE_NAME` | one of two | Use these instead when the platform gives you the parts separately; the URL is composed for you. `DATABASE_PORT` defaults to 5432. |
 | `DATABASE_USER` | **yes** | |
 | `DATABASE_PASSWORD` | **yes** | |
-| `CORS_ORIGINS` | **yes** | Your frontend's public HTTPS origin, e.g. `https://campusconnect.app`. No trailing slash. |
+| `CORS_ORIGINS` | no | Only needed if something on another origin calls the JSON API. The browser never does — pages and API share an origin. |
 | `ADMIN_EMAIL` | **yes** | The first admin account. Created on first boot only if no admin exists. |
 | `ADMIN_PASSWORD` | **yes** | 12+ characters; the app refuses a shorter one. This account can change everything. |
 | `MAIL_HOST` / `MAIL_PORT` / `MAIL_USERNAME` / `MAIL_PASSWORD` | **yes** | SMTP for verification emails. **The prod profile refuses to start without a host** — students would wait forever for a link that was never sent. |
 | `MAIL_OPTIONAL` | first deploy only | `true` lets it start with no mail server, for getting the site up before a sending domain exists. Links go to the log and nobody can earn the campus badge. Remove it once mail works. |
 | `MAIL_FROM` | **yes** | e.g. `CampusConnect <no-reply@yourdomain.com>`. Needs SPF and DKIM on that domain or campus mail servers will bin it. |
-| `APP_URL` | **yes** | Your frontend's public URL. Verification links are built from it, so a wrong value sends people to a dead link. |
+| `APP_URL` | **yes** | The service's own public URL. Verification links are built from it, so a wrong value sends people to a dead link. |
 | `PORT` | usually auto | Most platforms inject this. |
 | `SECURE_COOKIES` | defaults true in prod | Leave alone unless you are deliberately serving over HTTP. |
 | `FLYWAY_BASELINE` | first deploy only | `true` when pointing at a database Hibernate already created, so Flyway adopts the existing schema as V1. |
 | `STRIPE_SECRET_KEY` | no | Setting it switches the gateway to Stripe — **which is not implemented yet**. See below. |
 
-### Frontend
+### Pages
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `API_BASE_URL` | **yes** | Where the *server* reaches the API. Can be an internal address, with or without a scheme — `http://` is assumed for a bare `host:port`. |
-| `NEXT_PUBLIC_WS_URL` | **yes** | Where the *browser* reaches the WebSocket, e.g. `https://api.example.com/ws`. Baked in at build time, so it must be set as a **build** variable, not a runtime one. |
-| `NEXT_PUBLIC_APP_NAME` | no | Defaults to CampusConnect. |
-
-The `NEXT_PUBLIC_WS_URL` build-time detail is the single most common way to get a
-working-looking deploy where live messaging silently never connects.
+| `CAMPUSCONNECT_APP_NAME` | no | Defaults to CampusConnect. Shown in the sidebar and page titles. |
 
 ---
 
 ## Try the production config locally first
 
-`docker-compose.yml` runs Postgres + API + frontend exactly as production does.
+`docker-compose.yml` runs Postgres + the application exactly as production does.
 It is the cheapest way to catch a bad environment variable.
 
 ```bash
 cp .env.docker.example .env.docker
-# fill in CAMPUSCONNECT_JWT_SECRET and DATABASE_PASSWORD
+# fill in CAMPUSCONNECT_JWT_SECRET, DATABASE_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD
 docker compose --env-file .env.docker up --build
 ```
 
-Then open <http://localhost:3000>. If it works there, the same variables will
+Then open <http://localhost:8080>. If it works there, the same variables will
 work on a real host.
 
 Note this machine has no Docker installed — that command is for wherever you do
@@ -80,52 +76,44 @@ have it.
 
 ## Deploying, by platform
 
-### Railway (simplest — everything in one project)
-
-1. Push this repository to GitHub.
-2. New Project → Deploy from GitHub repo.
-3. Add a **PostgreSQL** service. Railway sets `PGHOST`/`PGUSER`/etc.
-4. Add a service for the **API**, root directory `api/`. It will use `api/Dockerfile`.
-   Set the variables above. `DATABASE_URL` must be rewritten into JDBC form:
-   `jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}`
-5. Add a service for the **frontend**, root directory `/`. Set `API_BASE_URL` to
-   the API service's internal URL and `NEXT_PUBLIC_WS_URL` to its public URL + `/ws`.
-6. Set `CORS_ORIGINS` on the API to the frontend's public URL, and redeploy the API.
-
 ### Render (fewest manual steps — `render.yaml` does the provisioning)
 
-`render.yaml` is a Blueprint describing all three pieces, so Render creates the
-database, wires its credentials into the API, and generates the JWT secret
-itself. Nothing secret lives in the file.
+`render.yaml` is a Blueprint describing both pieces, so Render creates the
+database, wires its credentials in, and generates the JWT secret itself. Nothing
+secret lives in the file.
 
 1. Push this repository to GitHub.
 2. Render Dashboard → **New → Blueprint** → pick the repository.
-3. Render prompts for the two values that cannot exist before the first deploy:
-   - `CORS_ORIGINS` on the API → the web service's URL, e.g. `https://campusconnect-web.onrender.com`
-   - `NEXT_PUBLIC_WS_URL` on the web → the API's URL + `/ws`, e.g. `https://campusconnect-api.onrender.com/ws`
-   You may need to deploy once, copy the assigned URLs, set these, and redeploy.
+3. Render prompts for the values that cannot exist before the first deploy:
+   `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and `APP_URL` — the service's own public
+   URL, e.g. `https://campusconnect.onrender.com`. You may need to deploy once,
+   copy the assigned URL, set `APP_URL`, and redeploy.
 
-`render.yaml` asks for the free plan everywhere. Two things to know about that:
+Note that Render re-reads `render.yaml` when the Blueprint is synced, not on an
+ordinary auto-deploy. Changing the file and pushing is not enough on its own.
+
+`render.yaml` asks for the free plan everywhere. Two things to know:
 
 - **A free Postgres instance is deleted after 30 days.** Everything in it goes
   with it. Move to a paid database before anyone's real bookings live there.
-- Free web services sleep when idle. That drops WebSocket connections and makes
-  the first request after a nap slow.
+- Free web services sleep when idle, which makes the first request after a nap
+  slow.
 
 Fine for showing the app to people; not a footing for real users.
 
-### Vercel (frontend) + Render (API)
+### Railway
 
-1. **Render** → New Web Service → Docker → root `api/`. Add a Render PostgreSQL
-   instance and set the variables above.
-2. **Vercel** → import the repository, framework Next.js. Set `API_BASE_URL` and
-   `NEXT_PUBLIC_WS_URL` to the Render URLs.
-3. Set `CORS_ORIGINS` on Render to the Vercel domain.
+1. Push this repository to GitHub.
+2. New Project → Deploy from GitHub repo.
+3. Add a **PostgreSQL** service.
+4. Add a service with root directory `api/`; it uses `api/Dockerfile`. Set the
+   variables above. `DATABASE_URL` may be given as a `postgres://` URI — the app
+   converts that to JDBC form itself.
 
 ### Fly.io (deploys from this folder — no GitHub needed)
 
-The only option here that does not require pushing to a Git host. `fly.toml`
-and `api/fly.toml` are already written; the CLI is at `~/.fly/bin/flyctl`.
+The only option here that does not require pushing to a Git host. `api/fly.toml`
+is already written; the CLI is at `~/.fly/bin/flyctl`.
 
 Fly asks for a payment card at signup even though a small app sits inside their
 low-usage allowances.
@@ -134,45 +122,34 @@ low-usage allowances.
 export PATH="$HOME/.fly/bin:$PATH"
 fly auth login                    # opens a browser
 
-# 1. The API. --copy-config keeps the settings already written here.
 cd api
 fly launch --copy-config --no-deploy
 #   App names are globally unique, so you may be given a different one.
-#   Whatever it is, use it in step 4.
 
-# 2. A database, attached to the API.
 fly postgres create --name campusconnect-db --region dfw
 fly postgres attach campusconnect-db
 #   This sets DATABASE_URL to a postgres:// URI. The app converts that to the
 #   jdbc: form itself — see DatabaseUrlNormalizer.
 
-# 3. The secrets. Never put these in fly.toml, which is committed.
-fly secrets set   CAMPUSCONNECT_JWT_SECRET="$(openssl rand -base64 48)"   ADMIN_EMAIL="you@example.com"   ADMIN_PASSWORD="at-least-twelve-characters"
+# Secrets never go in fly.toml, which is committed.
+fly secrets set \
+  CAMPUSCONNECT_JWT_SECRET="$(openssl rand -base64 48)" \
+  ADMIN_EMAIL="you@example.com" \
+  ADMIN_PASSWORD="at-least-twelve-characters"
 
 fly deploy
-#   Note the hostname it prints, e.g. campusconnect-api.fly.dev
-
-# 4. The website. If the API got a name other than campusconnect-api, edit
-#    fly.toml first: both NEXT_PUBLIC_WS_URL and API_BASE_URL name it.
-cd ..
-fly launch --copy-config --no-deploy
-fly deploy
-
-# 5. Point the API at the website, now that its URL exists.
-cd api
-fly secrets set   CORS_ORIGINS="https://campusconnect-web.fly.dev"   APP_URL="https://campusconnect-web.fly.dev"
+#   Note the hostname it prints, then point verification links at it:
+fly secrets set APP_URL="https://<the-hostname>"
 ```
 
-Then open the website, sign in with `ADMIN_EMAIL`, and add your campuses.
+Then open it, sign in with `ADMIN_EMAIL`, and add your campuses.
 
-Two settings worth revisiting once it works. `min_machines_running = 0` lets
-the machines suspend when idle, which is cheap but drops live messaging until
-someone wakes them; set it to `1` on the API if that matters. And the API is
-given 512mb — if it is killed on startup with an out-of-memory error, raise
-`memory` in `api/fly.toml` to `1gb`.
+`min_machines_running = 0` lets the machine suspend when idle, which is cheap
+but drops live messaging until someone wakes it; set it to `1` if that matters.
+If the app is killed on startup with an out-of-memory error, raise `memory` in
+`api/fly.toml` to `1gb`.
 
-To ship a change afterwards: `fly deploy` from that folder. No commit or push
-required, though committing first is still the sane habit.
+To ship a change afterwards: `fly deploy` from `api/`.
 
 ---
 
@@ -262,16 +239,21 @@ These are ordered by how much they matter.
 9. SMS and push are not wired to a provider; in-app notifications only. Email
    is wired, but is used solely for address verification — not for booking
    reminders or receipts.
-10. Availability assumes one timezone.
-11. `/actuator/health` is public for platform health checks; nothing else is exposed.
+10. The message thread refreshes on send rather than streaming. Messages are
+    still broadcast over STOMP, so a live client can be added without changing
+    how they are stored.
+11. Availability assumes one timezone.
+12. `/actuator/health` is public for platform health checks; nothing else is exposed.
 
 ---
 
 ## After the first deploy, check these
 
 - Sign up with a brand new email — proves the database is writable.
-- Sign in and open a conversation. **Look for the green "Live" dot.** If it says
-  Offline, `NEXT_PUBLIC_WS_URL` was wrong at build time.
+- Sign in and send a message; reload and confirm it is there.
+- Follow a verification link and confirm it lands on `/verify-email` and says
+  the address is confirmed. A wrong `APP_URL` sends people to a dead link.
+- Open `/admin` as a non-admin account and confirm it is refused.
 - Book something, then confirm the exact address appears only after confirmation.
 - Confirm `https://your-api/h2-console` is **not** reachable.
 - Confirm no `admin@campusconnect.dev` account exists. If one does, the prod

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Starts the API for local development.
+# Starts CampusConnect for local development.
 #
 #   cd api && ./run-local.sh
 #
@@ -28,10 +28,11 @@ export SEED_DEMO_DATA="${SEED_DEMO_DATA:-false}"
 # current one with:  ipconfig | grep IPv4
 LAN_IP="${LAN_IP:-100.70.52.154}"
 
-export APP_URL="${APP_URL:-http://${LAN_IP}:3100}"
-export CORS_ORIGINS="${CORS_ORIGINS:-http://localhost:3000,http://localhost:3100,http://${LAN_IP}:3100}"
+# The pages and the API come from this one process, so this is the only
+# address there is — and it is what verification links point at.
+export APP_URL="${APP_URL:-http://${LAN_IP}:8080}"
 
-echo "API      http://localhost:8080"
+echo "app      http://localhost:8080"
 echo "links    ${APP_URL}"
 echo "mail     ${MAIL_HOST:-console (nothing is actually sent)}"
 echo
