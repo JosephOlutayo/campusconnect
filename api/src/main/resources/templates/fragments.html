@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  Shared pieces. Nothing here renders on its own; pages pull fragments in with
+  th:replace so a provider card looks the same wherever it appears.
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+
+<!--
+  A provider card.
+
+  The cover and avatar colours are derived from the avatar seed rather than
+  stored, so a provider who has uploaded nothing still gets a stable, distinct
+  look instead of a grey placeholder.
+-->
+<article th:fragment="providerCard(card)" class="card provider-card">
+  <div class="provider-cover"
+       th:style="'background:linear-gradient(135deg,hsl(' + ${#strings.length(card.avatarSeed) * 37 % 360} + ',62%,58%),hsl(' + ${(#strings.length(card.avatarSeed) * 37 + 48) % 360} + ',58%,46%))'">
+    <div class="provider-avatar"
+         th:style="'background:hsl(' + ${#strings.length(card.avatarSeed) * 37 % 360} + ',55%,42%)'"
+         th:text="${#strings.toUpperCase(#strings.substring(card.businessName, 0, 2))}">KU</div>
+  </div>
+
+  <div class="provider-body">
+    <a th:href="@{'/providers/' + ${card.providerId}}">
+      <h3 style="font-size:0.95rem;font-weight:800" th:text="${card.businessName}">Business</h3>
+    </a>
+    <p class="tiny muted" style="margin:0.15rem 0 0"
+       th:if="${card.headlineService != null}"
+       th:text="${card.headlineService.title} + ' · ' + ${card.headlineService.durationMinutes} + ' min'">
+      Haircut · 45 min
+    </p>
+
+    <!-- Five empty stars for a provider nobody has reviewed reads as a score of
+         zero rather than an absence of one, so say it in words. -->
+    <p class="tiny" style="margin:0.45rem 0 0">
+      <th:block th:if="${card.ratingCount > 0}">
+        <span style="color:#f5a524">★</span>
+        <strong th:text="${#numbers.formatDecimal(card.ratingAvg, 1, 1)}">4.8</strong>
+        <span class="muted" th:text="'(' + ${card.ratingCount} + ')'">(10)</span>
+      </th:block>
+      <th:block th:unless="${card.ratingCount > 0}">
+        <strong>New</strong> <span class="muted">· no reviews yet</span>
+      </th:block>
+    </p>
+
+    <div class="chip-row">
+      <span class="chip" th:if="${card.universityShortName != null}"
+            th:text="${card.universityShortName}">UTD</span>
+      <span class="chip" th:if="${card.distanceMiles != null}"
+            th:text="${#numbers.formatDecimal(card.distanceMiles, 1, 1)} + ' mi'">0.3 mi</span>
+      <span class="chip" th:each="mode : ${card.locationModes}" th:text="${mode.label}">At provider</span>
+    </div>
+
+    <div class="card-foot">
+      <div class="row-between">
+        <span class="price"
+              th:text="'$' + ${#numbers.formatDecimal(card.fromPriceCents / 100.0, 1, 2)}">$25</span>
+        <a class="btn btn-sm" th:href="@{'/providers/' + ${card.providerId}}">Book now</a>
+      </div>
+      <p class="next-open" th:if="${card.nextAvailable != null}"
+         th:text="'Next: ' + ${#temporals.format(card.nextAvailable, 'EEE d MMM, h:mm a')}">
+        Next: Mon 7 Sep, 10:00 AM
+      </p>
+      <p class="next-open muted" th:unless="${card.nextAvailable != null}">No openings this week</p>
+    </div>
+  </div>
+</article>
+
+<!-- Shown wherever a list comes back empty. -->
+<div th:fragment="empty(icon, title, detail)" class="empty">
+  <p class="empty-icon" th:text="${icon}">🔍</p>
+  <p style="font-weight:700;margin:0.5rem 0 0" th:text="${title}">Nothing here yet</p>
+  <p class="small muted" style="margin:0.25rem 0 0" th:text="${detail}">Try again later.</p>
+</div>
+
+</body>
+</html>

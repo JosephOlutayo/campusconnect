@@ -38,6 +38,18 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
+    <!-- Server-rendered HTML. Replaces the separate Next.js app so the whole
+         thing is one Java application: one deploy, no CORS, no second runtime. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <!-- sec:authorize and friends inside templates. -->
+    <dependency>
+      <groupId>org.thymeleaf.extras</groupId>
+      <artifactId>thymeleaf-extras-springsecurity6</artifactId>
+    </dependency>
+
     <!-- STOMP over WebSocket for live messaging -->
     <dependency>
       <groupId>org.springframework.boot</groupId>

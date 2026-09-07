@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Categories · CampusConnect</title></head>
+<body>
+<main class="main">
+  <h1 class="page-title">Categories</h1>
+  <p class="page-sub">Every kind of work people offer on campus.</p>
+
+  <div class="grid grid-3" style="margin-top:1.25rem">
+    <a class="card card-pad" th:each="category : ${categories}"
+       th:href="@{/explore(category=${category.slug})}">
+      <span style="font-size:1.5rem" th:text="${category.icon}">💈</span>
+      <p style="font-weight:700;margin:0.4rem 0 0" th:text="${category.name}">Barbering</p>
+      <p class="tiny muted" style="margin:0.2rem 0 0" th:text="${category.description}">Cuts, fades and line-ups.</p>
+    </a>
+  </div>
+
+  <!-- th:if on an outer tag: th:replace is evaluated first, so the
+       two on one element render the fragment regardless. -->
+  <th:block th:if="${#lists.isEmpty(categories)}">
+    <div th:replace="~{fragments :: empty('📂', 'No categories yet',
+                     'An admin can add them from the console.')}"></div>
+  </th:block>
+</main>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Campuses · CampusConnect</title></head>
+<body>
+<main class="main">
+  <h1 class="page-title">Campuses</h1>
+  <p class="page-sub">Universities using CampusConnect.</p>
+
+  <div class="grid grid-3" style="margin-top:1.25rem">
+    <a class="card" th:each="campus : ${campuses}" th:href="@{/explore(campus=${campus.id})}">
+      <div style="height:8px;border-radius:var(--radius-card) var(--radius-card) 0 0"
+           th:style="'height:8px;background:' + ${campus.color}"></div>
+      <div class="card-pad">
+        <p style="font-weight:800" th:text="${campus.shortName}">UTD</p>
+        <p class="tiny muted" style="margin:0.15rem 0 0" th:text="${campus.name}">University name</p>
+        <p class="tiny muted" style="margin:0.35rem 0 0"
+           th:text="${campus.city} + ', ' + ${campus.state}">Richardson, TX</p>
+      </div>
+    </a>
+  </div>
+
+  <!-- th:if on an outer tag: th:replace is evaluated first, so the
+       two on one element render the fragment regardless. -->
+  <th:block th:if="${#lists.isEmpty(campuses)}">
+    <div th:replace="~{fragments :: empty('🏫', 'No campuses yet',
+                     'An admin adds universities from the console before anyone can sign up.')}"></div>
+  </th:block>
+</main>
+</body>
+</html>

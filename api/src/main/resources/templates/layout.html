@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<!--
+  The app shell every signed-in page sits inside: sidebar on desktop, tab bar on
+  phones, content in the middle.
+
+  Pages use it with Thymeleaf layout decoration:
+      <html th:replace="~{layout :: page(~{::title}, ~{::main})}">
+-->
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:fragment="page(title, content)">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ece7df">
+  <title th:replace="${title}">CampusConnect</title>
+  <link rel="stylesheet" th:href="@{/css/campusconnect.css}">
+  <link rel="icon" th:href="@{/icon-192.png}">
+  <link rel="apple-touch-icon" th:href="@{/apple-touch-icon.png}">
+  <link rel="manifest" th:href="@{/manifest.webmanifest}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+</head>
+<body>
+<div class="shell">
+
+  <aside class="sidebar">
+    <a class="brand" th:href="@{/}">
+      <span class="brand-mark">C</span>
+      <span>
+        <span class="brand-name" th:text="${appName} ?: 'CampusConnect'">CampusConnect</span><br>
+        <span class="brand-sub">Campus services</span>
+      </span>
+    </a>
+
+    <nav>
+      <div class="nav-group">
+        <p class="nav-label">Discover</p>
+        <a class="nav-item" th:href="@{/}" th:classappend="${active == 'home'} ? 'active'">Home</a>
+        <a class="nav-item" th:href="@{/explore}" th:classappend="${active == 'explore'} ? 'active'">Explore</a>
+        <a class="nav-item" th:href="@{/categories}" th:classappend="${active == 'categories'} ? 'active'">Categories</a>
+        <a class="nav-item" th:href="@{/campuses}" th:classappend="${active == 'campuses'} ? 'active'">Campuses</a>
+      </div>
+
+      <div class="nav-group" th:if="${currentUser != null}">
+        <p class="nav-label">Your activity</p>
+        <a class="nav-item" th:href="@{/appointments}" th:classappend="${active == 'appointments'} ? 'active'">Appointments</a>
+        <a class="nav-item" th:href="@{/messages}" th:classappend="${active == 'messages'} ? 'active'">
+          Messages
+          <span class="nav-badge" th:if="${unreadMessages != null and unreadMessages > 0}"
+                th:text="${unreadMessages}">0</span>
+        </a>
+        <a class="nav-item" th:href="@{/favorites}" th:classappend="${active == 'favorites'} ? 'active'">Saved</a>
+      </div>
+
+      <div class="nav-group" th:if="${currentUser != null and currentUser.role.name() == 'PROVIDER'}">
+        <p class="nav-label">Business</p>
+        <a class="nav-item" th:href="@{/provider}" th:classappend="${active == 'provider'} ? 'active'">Dashboard</a>
+      </div>
+
+      <div class="nav-group" th:if="${currentUser != null and currentUser.role.name() == 'ADMIN'}">
+        <p class="nav-label">Moderation</p>
+        <a class="nav-item" th:href="@{/admin}" th:classappend="${active == 'admin'} ? 'active'">Admin console</a>
+      </div>
+
+      <div class="nav-group">
+        <p class="nav-label">Account</p>
+        <th:block th:if="${currentUser != null}">
+          <a class="nav-item" th:href="@{/settings}" th:classappend="${active == 'settings'} ? 'active'">Settings</a>
+          <!-- A POST, so no link crawler or prefetch can sign anyone out. -->
+          <form th:action="@{/logout}" method="post" style="margin:0">
+            <button type="submit" class="nav-item"
+                    style="width:100%;background:none;border:0;cursor:pointer;font:inherit;text-align:left">
+              Sign out
+            </button>
+          </form>
+        </th:block>
+        <th:block th:unless="${currentUser != null}">
+          <a class="nav-item" th:href="@{/login}">Sign in</a>
+          <a class="nav-item" th:href="@{/signup}">Create account</a>
+        </th:block>
+      </div>
+    </nav>
+  </aside>
+
+  <div class="panel">
+    <main class="main" th:replace="${content}">
+      <p>Page content goes here.</p>
+    </main>
+  </div>
+</div>
+
+<nav class="tabbar">
+  <a th:href="@{/}" th:classappend="${active == 'home'} ? 'active'">Home</a>
+  <a th:href="@{/explore}" th:classappend="${active == 'explore'} ? 'active'">Explore</a>
+  <a th:href="@{/appointments}" th:classappend="${active == 'appointments'} ? 'active'"
+     th:if="${currentUser != null}">Bookings</a>
+  <a th:href="@{/messages}" th:classappend="${active == 'messages'} ? 'active'"
+     th:if="${currentUser != null}">Messages</a>
+  <a th:href="@{/settings}" th:classappend="${active == 'settings'} ? 'active'"
+     th:if="${currentUser != null}">Profile</a>
+  <a th:href="@{/login}" th:if="${currentUser == null}">Sign in</a>
+</nav>
+
+<script th:src="@{/js/app.js}" defer></script>
+</body>
+</html>

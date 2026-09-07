@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Explore services · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <p class="eyebrow">All campuses</p>
+  <h1 class="page-title">Explore services</h1>
+  <p class="page-sub">
+    <span th:text="${results.total}">0</span>
+    <span th:text="${results.total == 1} ? 'provider' : 'providers'">providers</span>
+    · sorted by <span th:text="${sort}">recommended</span>
+  </p>
+
+  <!-- A plain GET form: every filter ends up in the URL, so a filtered search
+       can be bookmarked, shared, and survives the back button. -->
+  <form th:action="@{/explore}" method="get">
+    <div class="searchbar">
+      <input class="input" type="search" name="q" th:value="${q}"
+             placeholder="What service are you looking for?" aria-label="Search services">
+      <button class="btn" type="submit">Search</button>
+    </div>
+
+    <div class="grid grid-3" style="margin-bottom:1rem">
+      <label class="field" style="margin:0">
+        <span class="field-label">Category</span>
+        <select class="select" name="category" onchange="this.form.submit()">
+          <option value="">Every category</option>
+          <option th:each="c : ${categories}" th:value="${c.slug}" th:text="${c.name}"
+                  th:selected="${c.slug == selectedCategory}">Barbering</option>
+        </select>
+      </label>
+      <label class="field" style="margin:0">
+        <span class="field-label">Campus</span>
+        <select class="select" name="campus" onchange="this.form.submit()">
+          <option value="">Every campus</option>
+          <option th:each="u : ${campuses}" th:value="${u.id}" th:text="${u.shortName}"
+                  th:selected="${selectedCampus != null and u.id.toString() == selectedCampus.toString()}">UTD</option>
+        </select>
+      </label>
+      <label class="field" style="margin:0">
+        <span class="field-label">Sort by</span>
+        <select class="select" name="sort" onchange="this.form.submit()">
+          <option value="recommended" th:selected="${sort == 'recommended'}">Recommended</option>
+          <option value="rating"      th:selected="${sort == 'rating'}">Top rated</option>
+          <option value="price_asc"   th:selected="${sort == 'price_asc'}">Price: low to high</option>
+          <option value="price_desc"  th:selected="${sort == 'price_desc'}">Price: high to low</option>
+          <option value="newest"      th:selected="${sort == 'newest'}">Newest</option>
+        </select>
+      </label>
+    </div>
+  </form>
+
+  <div class="grid grid-3" th:if="${not #lists.isEmpty(results.cards)}">
+      <!-- th:each on the outer element: th:replace is evaluated first, so a
+           fragment call on the same tag would run before `card` exists. -->
+      <th:block th:each="card : ${results.cards}">
+        <div th:replace="~{fragments :: providerCard(${card})}"></div>
+      </th:block>
+  </div>
+
+  <!-- th:if on an outer tag: th:replace is evaluated first, so the
+       two on one element render the fragment regardless. -->
+  <th:block th:if="${#lists.isEmpty(results.cards)}">
+    <div th:replace="~{fragments :: empty('🔍', 'Nothing matched',
+                     'Try a different category or campus, or clear the search box.')}"></div>
+  </th:block>
+
+  <!-- Pagination keeps the current filters, otherwise page two silently drops them. -->
+  <div class="row" style="justify-content:center;gap:0.75rem;margin-top:1.5rem"
+       th:if="${results.totalPages > 1}">
+    <a class="btn btn-secondary btn-sm" th:if="${results.page > 1}"
+       th:href="@{/explore(q=${q},category=${selectedCategory},campus=${selectedCampus},sort=${sort},page=${results.page - 1})}">Previous</a>
+    <span class="small muted"
+          th:text="'Page ' + ${results.page} + ' of ' + ${results.totalPages}">Page 1 of 1</span>
+    <a class="btn btn-secondary btn-sm" th:if="${results.page < results.totalPages}"
+       th:href="@{/explore(q=${q},category=${selectedCategory},campus=${selectedCampus},sort=${sort},page=${results.page + 1})}">Next</a>
+  </div>
+
+</main>
+</body>
+</html>

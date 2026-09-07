@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>CampusConnect — find someone on campus who can do it</title></head>
+<body>
+<main class="main">
+
+  <p class="eyebrow" th:text="${currentUser != null and currentUser.university != null}
+                              ? ${currentUser.university.shortName} : 'All campuses'">All campuses</p>
+
+  <h1 class="page-title" th:if="${currentUser != null}"
+      th:text="'Welcome back, ' + ${#strings.substringBefore(currentUser.name + ' ', ' ')}">Welcome back</h1>
+  <h1 class="page-title" th:unless="${currentUser != null}">Find someone on campus who can do it</h1>
+  <p class="page-sub">Barbers, braiders, tutors, photographers and more — booked in a few taps.</p>
+
+  <form class="searchbar" th:action="@{/explore}" method="get">
+    <input class="input" type="search" name="q" placeholder="What service are you looking for?"
+           aria-label="Search services">
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <div class="grid grid-3" style="margin-top:1.25rem">
+    <div class="card card-pad">
+      <p class="tiny muted">Providers</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${providerCount}">0</p>
+      <p class="tiny muted" th:text="${providerCount == 1} ? 'business listed' : 'businesses listed'">listed</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Campuses</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${#lists.size(campuses)}">0</p>
+      <p class="tiny muted">universities live</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Categories</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${#lists.size(categories)}">0</p>
+      <p class="tiny muted">kinds of work</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.75rem">Browse by category</h2>
+  <div class="grid grid-3">
+    <a class="card card-pad" th:each="category : ${categories}"
+       th:href="@{/explore(category=${category.slug})}">
+      <span style="font-size:1.25rem" th:text="${category.icon}">💈</span>
+      <p style="font-weight:700;margin:0.35rem 0 0" th:text="${category.name}">Barbering</p>
+      <p class="tiny muted" style="margin:0.15rem 0 0" th:text="${category.description}">Cuts and fades.</p>
+    </a>
+  </div>
+
+  <th:block th:if="${not #lists.isEmpty(featured)}">
+    <div class="row-between" style="margin:1.75rem 0 0.75rem">
+      <h2 style="font-size:1.05rem;font-weight:800">Available now</h2>
+      <a class="small" style="color:var(--accent);font-weight:700" th:href="@{/explore}">See all</a>
+    </div>
+    <div class="grid grid-3">
+      <!-- th:each on the outer element: th:replace is evaluated first, so a
+           fragment call on the same tag would run before `card` exists. -->
+      <th:block th:each="card : ${featured}">
+        <div th:replace="~{fragments :: providerCard(${card})}"></div>
+      </th:block>
+    </div>
+  </th:block>
+
+  <!-- th:if on an outer tag: th:replace is evaluated first, so the
+       two on one element render the fragment regardless. -->
+  <th:block th:if="${#lists.isEmpty(featured)}">
+    <div th:replace="~{fragments :: empty('🌱', 'No providers yet',
+                     'Once someone lists a service on your campus it shows up here.')}"></div>
+  </th:block>
+
+</main>
+</body>
+</html>

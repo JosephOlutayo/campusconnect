@@ -63,6 +63,22 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // Server-rendered pages and their assets. Browsing the
+                        // marketplace has never needed an account, and the HTML
+                        // pages are the same content the JSON endpoints serve.
+                        .requestMatchers(HttpMethod.GET,
+                                "/", "/explore", "/categories", "/campuses",
+                                "/providers/**", "/campuses/**", "/legal/**",
+                                "/login", "/signup", "/verify-email",
+                                "/css/**", "/js/**", "/favicon.ico",
+                                "/icon-*.png", "/apple-touch-icon.png",
+                                "/manifest.webmanifest").permitAll()
+                        // The HTML sign-in and sign-up forms post here.
+                        // Without this any server-side error is answered with 401
+                        // instead of its real status, which sends you hunting for an
+                        // auth problem that does not exist.
+                        .requestMatchers("/error").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/login", "/signup").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         // Browsing the marketplace does not require an account.
                         // Note /api/stats/me is deliberately NOT here — campus
@@ -75,6 +91,28 @@ public class SecurityConfig {
                                 "/api/availability/**",
                                 "/api/stats/campus",
                                 "/api/stats/settings").permitAll()
+                        // Server-rendered pages anyone may see, plus the assets
+                        // they pull. Signed-in pages fall through to authenticated
+                        // below, same as the API.
+                        .requestMatchers(HttpMethod.GET,
+                                "/",
+                                "/explore",
+                                "/categories",
+                                "/campuses",
+                                "/campuses/**",
+                                "/providers/**",
+                                "/login",
+                                "/signup",
+                                "/verify-email",
+                                "/legal/**").permitAll()
+                        .requestMatchers(
+                                "/css/**",
+                                "/js/**",
+                                "/images/**",
+                                "/favicon.ico",
+                                "/manifest.webmanifest",
+                                "/apple-touch-icon.png",
+                                "/icon-*.png").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
