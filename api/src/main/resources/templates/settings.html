@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Settings · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <h1 class="page-title">Settings</h1>
+  <p class="page-sub">Your profile and how you sign in.</p>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Could not save.</p>
+  <p class="form-notice" style="margin-top:1rem;background:var(--success-soft);color:var(--success)"
+     th:if="${notice}" th:text="${notice}">Saved.</p>
+
+  <!-- Profile ------------------------------------------------------------- -->
+  <form th:action="@{/settings/profile}" method="post" class="card card-pad"
+        style="max-width:520px;margin-top:1rem">
+    <h2 style="font-size:1.05rem;font-weight:800;margin:0 0 0.75rem">Profile</h2>
+
+    <label class="field">
+      <span class="field-label">Name</span>
+      <input class="input" name="name" th:value="${user.name}" maxlength="80" required>
+    </label>
+
+    <label class="field">
+      <span class="field-label">University</span>
+      <select class="input" name="universityId" required>
+        <option th:each="c : ${campuses}" th:value="${c.id}"
+                th:text="${c.name}" th:selected="${c.id == universityId}">UT Dallas</option>
+      </select>
+      <!-- The badge is tied to a proven address, not to the campus you pick, so
+           switching campus can drop it. Better said here than discovered. -->
+      <span class="hint">
+        Changing campus removes the student badge unless your confirmed email
+        belongs to the campus you pick.
+      </span>
+    </label>
+
+    <label class="field">
+      <span class="field-label">About you</span>
+      <textarea class="input" name="bio" rows="3" maxlength="500"
+                th:text="${user.bio}"></textarea>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Phone</span>
+      <input class="input" name="phone" type="tel" th:value="${user.phone}" maxlength="30">
+      <span class="hint">Never shown to other users. Used only if support needs to reach you.</span>
+    </label>
+
+    <button class="btn btn-block" type="submit" data-busy="Saving…">Save profile</button>
+  </form>
+
+  <!-- Email --------------------------------------------------------------- -->
+  <section class="card card-pad" style="max-width:520px;margin-top:1rem">
+    <h2 style="font-size:1.05rem;font-weight:800;margin:0 0 0.5rem">Email</h2>
+
+    <p class="row-between">
+      <span th:text="${user.email}">you@example.com</span>
+      <span class="badge badge-success" th:if="${user.emailVerifiedAt != null}">Confirmed</span>
+      <span class="badge badge-warning" th:if="${user.emailVerifiedAt == null}">Not confirmed</span>
+    </p>
+
+    <p class="tiny muted" style="margin:0.4rem 0 0" th:if="${user.studentVerified}">
+      Campus badge active — your confirmed address belongs to your university.
+    </p>
+
+    <!-- Honest about the setup: with the console mailer nothing is delivered,
+         so a "send me a link" button would be a button that does nothing. -->
+    <th:block th:if="${user.emailVerifiedAt == null}">
+      <form th:action="@{/settings/resend-verification}" method="post" style="margin-top:0.75rem"
+            th:if="${emailDeliveryOn}">
+        <button class="btn btn-secondary btn-block btn-sm" type="submit" data-busy="Sending…">
+          Send me a confirmation link
+        </button>
+      </form>
+      <p class="hint" style="margin-top:0.75rem" th:unless="${emailDeliveryOn}">
+        Email sending is not switched on for this deployment, so no confirmation
+        link can be delivered right now. Everything else works without it.
+      </p>
+    </th:block>
+  </section>
+
+  <!-- Change email -------------------------------------------------------- -->
+  <form th:action="@{/settings/email}" method="post" class="card card-pad"
+        style="max-width:520px;margin-top:1rem">
+    <h2 style="font-size:1.05rem;font-weight:800;margin:0 0 0.75rem">Change email</h2>
+
+    <label class="field">
+      <span class="field-label">New email</span>
+      <input class="input" name="newEmail" type="email" required autocomplete="email">
+    </label>
+
+    <label class="field">
+      <span class="field-label">Current password</span>
+      <input class="input" name="password" type="password" required autocomplete="current-password">
+      <!-- A stolen session should not be enough to walk off with the account. -->
+      <span class="hint">Asked for because changing your email can take over an account.</span>
+    </label>
+
+    <button class="btn btn-secondary btn-block" type="submit" data-busy="Sending…">
+      Send confirmation link
+    </button>
+    <p class="hint" style="margin-top:0.5rem">
+      Nothing changes until you follow the link sent to the new address. Your
+      current address gets a warning either way.
+    </p>
+  </form>
+
+  <p class="tiny muted" style="margin-top:1.25rem">
+    <a th:href="@{/legal/terms}">Terms</a> ·
+    <a th:href="@{/legal/privacy}">Privacy</a> ·
+    <a th:href="@{/legal/guidelines}">Community guidelines</a>
+  </p>
+
+</main>
+</body>
+</html>

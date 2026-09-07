@@ -2,6 +2,7 @@ package app.campusconnect.view;
 
 import app.campusconnect.domain.LocationMode;
 import app.campusconnect.domain.ProviderStatus;
+import app.campusconnect.domain.University;
 import app.campusconnect.repository.CategoryRepository;
 import app.campusconnect.repository.ProviderProfileRepository;
 import app.campusconnect.repository.UniversityRepository;
@@ -9,10 +10,12 @@ import app.campusconnect.security.AuthenticatedUser;
 import app.campusconnect.security.CurrentUser;
 import app.campusconnect.service.SearchService;
 import app.campusconnect.service.SearchService.SearchQuery;
+import app.campusconnect.web.ApiException;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.Set;
@@ -101,5 +104,30 @@ public class BrowseViewController {
         model.addAttribute("active", "campuses");
         model.addAttribute("campuses", universities.findByActiveTrueOrderByNameAsc());
         return "campuses";
+    }
+
+    /**
+     * One campus and who works around it.
+     *
+     * Addressed by slug rather than id so the link is readable and survives the
+     * database being rebuilt.
+     */
+    @GetMapping("/campuses/{slug}")
+    public String campus(@PathVariable String slug,
+                         @RequestParam(required = false, defaultValue = "1") int page,
+                         @CurrentUser AuthenticatedUser me,
+                         Model model) {
+        var campus = universities.findBySlug(slug.toLowerCase())
+                .filter(University::isActive)
+                .orElseThrow(() -> ApiException.notFound("No campus at that address."));
+
+        SearchQuery query = new SearchQuery(null, null, campus.getId(), null, null, null,
+                Set.<LocationMode>of(), null, "recommended", false, Math.max(1, page), PER_PAGE);
+
+        model.addAttribute("active", "campuses");
+        model.addAttribute("campus", campus);
+        model.addAttribute("results", searchService.search(query, me == null ? null : me.id()));
+        model.addAttribute("categories", categories.findByActiveTrueOrderBySortOrderAsc());
+        return "campus";
     }
 }

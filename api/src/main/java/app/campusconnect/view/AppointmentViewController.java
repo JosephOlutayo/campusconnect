@@ -7,6 +7,7 @@ import app.campusconnect.repository.ReviewRepository;
 import app.campusconnect.security.AuthenticatedUser;
 import app.campusconnect.security.CurrentUser;
 import app.campusconnect.service.BookingService;
+import app.campusconnect.service.ReviewService;
 import app.campusconnect.web.ApiException;
 import app.campusconnect.web.dto.BookingDtos.BookingDto;
 import org.springframework.stereotype.Controller;
@@ -46,13 +47,16 @@ public class AppointmentViewController {
     private final BookingRepository bookings;
     private final BookingService bookingService;
     private final ReviewRepository reviews;
+    private final ReviewService reviewService;
 
     public AppointmentViewController(BookingRepository bookings,
                                      BookingService bookingService,
-                                     ReviewRepository reviews) {
+                                     ReviewRepository reviews,
+                                     ReviewService reviewService) {
         this.bookings = bookings;
         this.bookingService = bookingService;
         this.reviews = reviews;
+        this.reviewService = reviewService;
     }
 
     @GetMapping("/appointments")
@@ -113,6 +117,32 @@ public class AppointmentViewController {
         } catch (ApiException refused) {
             // Query parameter, not a flash attribute: the app is STATELESS, so
             // flash storage is discarded and the page would explain nothing.
+            return "redirect:/appointments/" + id
+                    + "?error=" + URLEncoder.encode(refused.getMessage(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * Leaving a review.
+     *
+     * Not @Transactional, for the same reason as cancel: ReviewService runs its
+     * own, and wrapping it here turns "you have already reviewed this" into a
+     * 500 instead of a message.
+     */
+    @PostMapping("/appointments/{id}/review")
+    public String review(@PathVariable UUID id,
+                         @RequestParam int rating,
+                         @RequestParam(required = false) String body,
+                         @CurrentUser AuthenticatedUser me) {
+        if (me == null) {
+            return "redirect:/login";
+        }
+        try {
+            // Only the customer on a completed booking can review it, and only
+            // once — ReviewService enforces both.
+            reviewService.create(id, me.id(), rating, body);
+            return "redirect:/appointments/" + id;
+        } catch (ApiException refused) {
             return "redirect:/appointments/" + id
                     + "?error=" + URLEncoder.encode(refused.getMessage(), StandardCharsets.UTF_8);
         }

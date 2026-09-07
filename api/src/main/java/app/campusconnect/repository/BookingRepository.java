@@ -86,6 +86,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     List<Booking> findByProviderIdOrderByStartAtDesc(UUID providerId);
 
+    /** Admin moderation list: the most recent bookings across the whole platform. */
+    List<Booking> findTop200ByOrderByCreatedAtDesc();
+
     List<Booking> findByProviderIdAndStatusOrderByStartAtAsc(UUID providerId, BookingStatus status);
 
     long countByProviderIdAndStatus(UUID providerId, BookingStatus status);

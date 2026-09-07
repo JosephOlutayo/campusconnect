@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Policies · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <h1 class="page-title">Policies</h1>
+  <p class="page-sub">How this marketplace works, in writing.</p>
+
+  <div class="stack" style="margin-top:1rem;max-width:520px">
+    <a class="card card-pad" th:each="d : ${docs}" th:href="@{'/legal/' + ${d.slug}}">
+      <p style="font-weight:800" th:text="${d.title}">Terms of service</p>
+      <p class="tiny muted" style="margin:0.15rem 0 0" th:text="${d.updated}">Draft</p>
+    </a>
+  </div>
+
+  <p class="form-notice" style="margin-top:1.25rem;max-width:520px">
+    These are working drafts written to match how the product behaves today. A
+    lawyer needs to review them before CampusConnect handles real payments.
+  </p>
+
+</main>
+</body>
+</html>

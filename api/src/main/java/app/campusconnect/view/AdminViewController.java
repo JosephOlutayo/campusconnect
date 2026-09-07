@@ -3,6 +3,7 @@ package app.campusconnect.view;
 import app.campusconnect.domain.BookingStatus;
 import app.campusconnect.domain.PlatformSetting;
 import app.campusconnect.domain.ProviderStatus;
+import app.campusconnect.domain.ReportStatus;
 import app.campusconnect.domain.Role;
 import app.campusconnect.domain.University;
 import app.campusconnect.domain.User;
@@ -78,7 +79,7 @@ public class AdminViewController {
         model.addAttribute("pendingProviders", providers.countByStatus(ProviderStatus.PENDING));
         model.addAttribute("campusCount", universities.count());
         model.addAttribute("bookingCount", bookings.count());
-        model.addAttribute("openReports", reports.count());
+        model.addAttribute("openReports", reports.countByStatus(ReportStatus.OPEN));
         model.addAttribute("feePercent", settings.platformFeePercent());
         model.addAttribute("autoApprove", settings.providerAutoApprove());
         return "admin/overview";
@@ -261,6 +262,54 @@ public class AdminViewController {
         category.setActive(!category.isActive());
         categories.save(category);
         return "redirect:/admin/categories";
+    }
+
+    // --- reports -------------------------------------------------------------
+
+    @GetMapping("/reports")
+    @Transactional(readOnly = true)
+    public String reportList(Model model) {
+        model.addAttribute("active", "admin");
+        var all = reports.findAllByOrderByCreatedAtDesc();
+        // open-in-view is off, so the reporter is read here rather than lazily
+        // during rendering.
+        all.forEach(report -> report.getReporter().getName());
+        model.addAttribute("reports", all);
+        return "admin/reports";
+    }
+
+    @PostMapping("/reports/{id}/resolve")
+    @Transactional
+    public String resolveReport(@PathVariable UUID id,
+                                @RequestParam(required = false) String note) {
+        var report = reports.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Report not found."));
+        report.setStatus(ReportStatus.RESOLVED);
+        report.setResolutionNote(note);
+        report.setResolvedAt(java.time.Instant.now());
+        reports.save(report);
+        return "redirect:/admin/reports";
+    }
+
+    // --- bookings ------------------------------------------------------------
+
+    /**
+     * Every booking on the platform. Read-only: an admin can see what happened
+     * so a dispute can be answered, but confirming or cancelling on someone
+     * else's behalf belongs to the two people in the booking.
+     */
+    @GetMapping("/bookings")
+    @Transactional(readOnly = true)
+    public String bookingList(Model model) {
+        model.addAttribute("active", "admin");
+        var recent = bookings.findTop200ByOrderByCreatedAtDesc();
+        recent.forEach(booking -> {
+            booking.getCustomer().getName();
+            booking.getProvider().getBusinessName();
+            booking.getService().getTitle();
+        });
+        model.addAttribute("bookings", recent);
+        return "admin/bookings";
     }
 
     // --- settings ------------------------------------------------------------

@@ -8,7 +8,7 @@
   <p class="page-sub">Universities using CampusConnect.</p>
 
   <div class="grid grid-3" style="margin-top:1.25rem">
-    <a class="card" th:each="campus : ${campuses}" th:href="@{/explore(campus=${campus.id})}">
+    <a class="card" th:each="campus : ${campuses}" th:href="@{'/campuses/' + ${campus.slug}}">
       <div style="height:8px;border-radius:var(--radius-card) var(--radius-card) 0 0"
            th:style="'height:8px;background:' + ${campus.color}"></div>
       <div class="card-pad">

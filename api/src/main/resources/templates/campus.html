@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="${campus.shortName} + ' · CampusConnect'">Campus · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/campuses}">&larr; Campuses</a>
+
+  <div class="card" style="margin-top:0.75rem;overflow:hidden">
+    <div th:style="'height:10px;background:' + ${campus.color}"></div>
+    <div class="card-pad">
+      <p class="eyebrow" th:text="${campus.city} + ', ' + ${campus.state}">Richardson, TX</p>
+      <h1 class="page-title" style="margin:0.2rem 0 0" th:text="${campus.name}">University name</h1>
+      <p class="page-sub" th:text="${campus.shortName}">UTD</p>
+      <p class="tiny muted" style="margin-top:0.6rem"
+         th:if="${not #lists.isEmpty(campus.emailDomains)}">
+        Campus badge for addresses at
+        <span th:each="d,it : ${campus.emailDomains}"
+              th:text="${d} + (${it.last} ? '' : ', ')">utdallas.edu</span>
+      </p>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.5rem 0 0.6rem">Providers here</h2>
+
+  <div class="grid grid-3" th:if="${not #lists.isEmpty(results.cards)}">
+    <th:block th:each="card : ${results.cards}">
+      <div th:replace="~{fragments :: providerCard(${card})}"></div>
+    </th:block>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(results.cards)}">
+    <div th:replace="~{fragments :: empty('🏫', 'Nobody here yet',
+                      'Be the first — set up a business and students on this campus will find you.')}"></div>
+  </th:block>
+
+  <p style="margin-top:1.25rem">
+    <a class="btn btn-secondary btn-sm" th:href="@{/explore(campus=${campus.id})}">
+      Search with filters
+    </a>
+  </p>
+
+</main>
+</body>
+</html>

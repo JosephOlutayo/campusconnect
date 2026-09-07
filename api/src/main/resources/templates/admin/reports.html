@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Reports · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/admin}">&larr; Admin</a>
+  <h1 class="page-title" style="margin-top:0.5rem">Reports</h1>
+  <p class="page-sub">What people have flagged.</p>
+
+  <div class="stack" style="margin-top:1rem" th:unless="${#lists.isEmpty(reports)}">
+    <div class="card card-pad" th:each="r : ${reports}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700" th:text="${r.reason}">Reason</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${r.targetType} + ' · reported by ' + ${r.reporter.name}">
+            PROVIDER · reported by someone
+          </p>
+        </div>
+        <span class="badge"
+              th:classappend="${r.status.name() == 'OPEN'} ? 'badge-warning' : 'badge-success'"
+              th:text="${r.status}">OPEN</span>
+      </div>
+
+      <p class="small" style="margin:0.6rem 0 0" th:if="${r.details}" th:text="${r.details}">Details</p>
+      <p class="tiny muted" style="margin:0.4rem 0 0" th:if="${r.resolutionNote}"
+         th:text="'Resolution: ' + ${r.resolutionNote}">Resolution</p>
+
+      <!-- Resolving records what was decided. A report closed with no note
+           tells the next moderator nothing. -->
+      <form th:action="@{'/admin/reports/' + ${r.id} + '/resolve'}" method="post"
+            style="margin-top:0.75rem" th:if="${r.status.name() == 'OPEN'}">
+        <label class="field">
+          <span class="field-label">What did you do about it?</span>
+          <input class="input" name="note" maxlength="500"
+                 placeholder="Suspended the account / no action needed">
+        </label>
+        <button class="btn btn-secondary btn-block btn-sm" type="submit">Mark resolved</button>
+      </form>
+    </div>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(reports)}">
+    <div th:replace="~{fragments :: empty('🚩', 'No reports',
+                      'Nothing has been flagged.')}"></div>
+  </th:block>
+
+</main>
+</body>
+</html>

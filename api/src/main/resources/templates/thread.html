@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="${counterpart} + ' · CampusConnect'">Conversation · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/messages}">&larr; Messages</a>
+
+  <div class="row-between" style="margin-top:0.5rem">
+    <h1 class="page-title" style="margin:0" th:text="${counterpart}">Kunmi Cutzs</h1>
+    <a class="btn btn-secondary btn-sm" th:if="${viewerIsCustomer}"
+       th:href="@{'/providers/' + ${providerId}}">View profile</a>
+  </div>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">
+    Could not send that.
+  </p>
+
+  <div class="stack" style="margin-top:1rem" th:unless="${#lists.isEmpty(messages)}">
+    <div class="bubble" th:each="m : ${messages}"
+         th:classappend="${m.mine} ? 'bubble-mine' : ''">
+      <p th:text="${m.body}">Hey, are you free Thursday?</p>
+      <p class="tiny muted" style="margin:0.3rem 0 0"
+         th:text="${m.mine ? 'You' : m.senderName} + ' · ' + ${#temporals.format(m.sentAt, 'd MMM, h:mm a')}">
+        You · 7 Sep, 10:00 AM
+      </p>
+    </div>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(messages)}">
+    <div th:replace="~{fragments :: empty('👋', 'No messages yet',
+                      'Say hello — they will see it next time they open the app.')}"></div>
+  </th:block>
+
+  <!-- The page reloads on send rather than streaming. New messages from the
+       other side appear on the next load. -->
+  <form th:action="@{'/messages/' + ${conversationId}}" method="post"
+        class="card card-pad" style="margin-top:1rem">
+    <label class="field">
+      <span class="field-label">Message</span>
+      <textarea class="input" name="body" rows="3" maxlength="4000" required
+                placeholder="Write a message…"></textarea>
+    </label>
+    <button class="btn btn-block" type="submit" data-busy="Sending…">Send</button>
+    <p class="hint" style="margin-top:0.5rem">
+      Keep it in the app. If something goes wrong, this record is what lets us help.
+    </p>
+  </form>
+
+</main>
+</body>
+</html>

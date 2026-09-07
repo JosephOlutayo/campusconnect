@@ -97,6 +97,53 @@
     </p>
   </div>
 
+  <!-- Reviewing is only offered on a completed booking, and only once, because
+       that is exactly what ReviewService will accept. Showing the form when it
+       would be refused is just a slower way of saying no. -->
+  <div class="card card-pad" style="margin-top:0.9rem"
+       th:if="${isCustomer and booking.status == 'COMPLETED' and booking.reviewed}">
+    <p class="field-label">Your review</p>
+    <p style="margin:0.2rem 0 0">
+      <span style="color:#f5a524" th:each="i : ${#numbers.sequence(1, booking.reviewRating)}">&#9733;</span>
+      <span class="small muted" th:text="' ' + ${booking.reviewRating} + ' out of 5'"> 5 out of 5</span>
+    </p>
+  </div>
+
+  <form th:action="@{'/appointments/' + ${booking.id} + '/review'}" method="post"
+        class="card card-pad" style="margin-top:0.9rem"
+        th:if="${isCustomer and booking.status == 'COMPLETED' and !booking.reviewed}">
+    <p class="field-label">How did it go?</p>
+
+    <label class="field">
+      <span class="field-label">Rating</span>
+      <select class="input" name="rating" required>
+        <option value="5">&#9733;&#9733;&#9733;&#9733;&#9733; — excellent</option>
+        <option value="4">&#9733;&#9733;&#9733;&#9733; — good</option>
+        <option value="3">&#9733;&#9733;&#9733; — okay</option>
+        <option value="2">&#9733;&#9733; — poor</option>
+        <option value="1">&#9733; — bad</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span class="field-label">What happened (optional)</span>
+      <textarea class="input" name="body" rows="3" maxlength="1000"
+                placeholder="What other students should know"></textarea>
+    </label>
+
+    <button class="btn btn-block" type="submit" data-busy="Posting…">Post review</button>
+    <p class="hint" style="margin-top:0.5rem">
+      Public, under your name, and it moves this provider's average. You can
+      review each appointment once.
+    </p>
+  </form>
+
+  <p style="margin-top:0.9rem" th:if="${isCustomer}">
+    <a class="btn btn-secondary btn-sm" th:href="@{'/providers/' + ${booking.providerId}}">
+      Message the provider
+    </a>
+  </p>
+
   <form th:action="@{'/appointments/' + ${booking.id} + '/cancel'}" method="post"
         style="margin-top:0.9rem"
         th:if="${isCustomer and (booking.status == 'PENDING' or booking.status == 'CONFIRMED')}"

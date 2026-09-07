@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Messages · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <h1 class="page-title">Messages</h1>
+  <p class="page-sub">Your conversations, most recent first.</p>
+
+  <div class="stack" style="margin-top:1rem" th:unless="${#lists.isEmpty(threads)}">
+    <a class="card card-pad" th:each="t : ${threads}" th:href="@{'/messages/' + ${t.id}}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:800" th:text="${t.counterpart}">Kunmi Cutzs</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${#temporals.format(t.lastMessageAt, 'd MMM, h:mm a')}">
+            7 Sep, 10:00 AM
+          </p>
+        </div>
+        <span class="badge badge-warning" th:if="${t.unread > 0}" th:text="${t.unread}">2</span>
+      </div>
+    </a>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(threads)}">
+    <div th:replace="~{fragments :: empty('💬', 'No messages yet',
+                      'Message a provider from their page and the thread shows up here.')}"></div>
+  </th:block>
+
+</main>
+</body>
+</html>

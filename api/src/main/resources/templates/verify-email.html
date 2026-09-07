@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Confirm your email · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <div class="card card-pad" style="max-width:480px;margin:2rem auto;text-align:center">
+
+    <th:block th:if="${ok}">
+      <p style="font-size:2rem;margin:0">✅</p>
+      <h1 class="page-title" style="margin:0.5rem 0 0">Email confirmed</h1>
+      <p class="page-sub" th:text="${email} + ' is now confirmed.'">
+        you@example.com is now confirmed.
+      </p>
+      <p class="small" style="margin-top:0.75rem" th:if="${studentVerified}">
+        Your campus badge is active — that address belongs to your university.
+      </p>
+      <a class="btn btn-block" style="margin-top:1rem" th:href="@{/}">Go to CampusConnect</a>
+    </th:block>
+
+    <th:block th:unless="${ok}">
+      <p style="font-size:2rem;margin:0">⚠️</p>
+      <h1 class="page-title" style="margin:0.5rem 0 0">That link did not work</h1>
+      <p class="page-sub" th:text="${message}">
+        That verification link has expired or was already used.
+      </p>
+      <!-- Getting a new link needs a signed-in session, because a link is only
+           ever sent to the address on the account. -->
+      <a class="btn btn-block" style="margin-top:1rem" th:href="@{/settings}">
+        Sign in and ask for a new link
+      </a>
+    </th:block>
+
+  </div>
+
+</main>
+</body>
+</html>

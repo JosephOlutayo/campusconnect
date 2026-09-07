@@ -117,6 +117,11 @@ public class SecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // The server-rendered console needs the same role as
+                        // the JSON endpoints behind it. Without this line the
+                        // pages fall through to anyRequest().authenticated(),
+                        // which any signed-in student satisfies.
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 // 401/403 come back as the same {ok,error} envelope as everything else.
                 .exceptionHandling(handling -> handling

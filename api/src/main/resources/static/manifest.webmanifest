@@ -1,0 +1,22 @@
+{
+  "name": "CampusConnect — campus services",
+  "short_name": "CampusConnect",
+  "description": "Book barbers, braiders, tutors, photographers and more from students and pros around your campus.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ece7df",
+  "theme_color": "#ece7df",
+  "categories": ["lifestyle", "shopping", "education"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Explore services", "url": "/explore" },
+    { "name": "My appointments", "url": "/appointments" },
+    { "name": "Messages", "url": "/messages" }
+  ]
+}

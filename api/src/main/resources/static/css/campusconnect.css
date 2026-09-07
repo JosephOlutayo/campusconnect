@@ -267,3 +267,27 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
 .empty-icon { font-size: 2rem; margin: 0; }
 .searchbar { display: flex; gap: 0.5rem; margin: 1rem 0; }
 .searchbar .input { flex: 1; }
+
+/* --- message thread ------------------------------------------------------ */
+
+/* Your own messages sit to the right and carry the accent, so a thread can be
+   read at a glance without checking every name. */
+.bubble {
+  max-width: 32rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 1rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-mine {
+  margin-left: auto;
+  background: var(--accent-soft);
+  border-color: transparent;
+}

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title th:text="${doc.title} + ' · CampusConnect'">Terms · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/legal}">&larr; Policies</a>
+  <p class="tiny muted" style="margin:0.75rem 0 0" th:text="${doc.updated}">Draft</p>
+  <h1 class="page-title" style="margin-top:0.25rem" th:text="${doc.title}">Terms of service</h1>
+
+  <div class="card card-pad stack" style="margin-top:1rem;max-width:640px">
+    <section th:each="s : ${doc.sections}">
+      <h2 style="font-size:0.98rem;font-weight:800;margin:0" th:text="${s.heading}">Heading</h2>
+      <p class="small" style="margin:0.35rem 0 0;line-height:1.6" th:text="${s.body}">Body text.</p>
+    </section>
+  </div>
+
+  <!-- Said plainly rather than buried: a policy page that looks finished when
+       it is not is worse than no policy page at all. -->
+  <p class="form-notice" style="margin-top:1.25rem;max-width:640px">
+    This is a working draft written to match how the product behaves today. It is
+    not legal advice, and it needs review by a lawyer before CampusConnect
+    handles real payments or launches publicly.
+  </p>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Earnings · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/provider}">&larr; Dashboard</a>
+  <h1 class="page-title" style="margin-top:0.5rem">Earnings</h1>
+  <p class="page-sub">What completed work has brought in.</p>
+
+  <div class="grid grid-3" style="margin-top:1rem">
+    <div class="card card-pad">
+      <p class="tiny muted">This month</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0"
+         th:text="'$' + ${#numbers.formatDecimal(stats.earnedThisMonthCents / 100.0, 1, 2)}">$0.00</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">All time</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0"
+         th:text="'$' + ${#numbers.formatDecimal(stats.earnedAllTimeCents / 100.0, 1, 2)}">$0.00</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Completed</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0"
+         th:text="${stats.completedAllTime}">0</p>
+      <p class="tiny muted">appointments</p>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.5rem 0 0.6rem">By week</h2>
+
+  <div class="card card-pad" th:unless="${#lists.isEmpty(stats.earningsByWeek)}">
+    <div class="row-between" th:each="w : ${stats.earningsByWeek}" style="padding:0.35rem 0">
+      <span class="small" th:text="${w.label}">Week of 1 Sep</span>
+      <span class="small">
+        <strong th:text="'$' + ${#numbers.formatDecimal(w.amountCents / 100.0, 1, 2)}">$0.00</strong>
+        <span class="muted" th:text="' · ' + ${w.bookings} + ' booking(s)'"> · 0 booking(s)</span>
+      </span>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.5rem 0 0.6rem">Completed appointments</h2>
+
+  <th:block th:if="${#lists.isEmpty(completed)}">
+    <div th:replace="~{fragments :: empty('💵', 'Nothing completed yet',
+                      'Mark an appointment complete and it shows up here.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(completed)}">
+    <div class="card card-pad" th:each="b : ${completed}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700" th:text="${b.service.title}">Service</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${b.customer.name} + ' · ' + ${#temporals.format(b.startAt, 'd MMM yyyy')}">
+            Customer · 7 Sep 2026
+          </p>
+        </div>
+        <span class="price"
+              th:text="'$' + ${#numbers.formatDecimal(b.priceCents / 100.0, 1, 2)}">$25.00</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Payments are still mocked, so this is what the platform would have taken
+       and paid out, not money that has actually moved. -->
+  <p class="form-notice" style="margin-top:1.25rem">
+    Payments are simulated in this build. These figures come from completed
+    bookings; no money has actually moved and no payout has been made.
+  </p>
+
+</main>
+</body>
+</html>
