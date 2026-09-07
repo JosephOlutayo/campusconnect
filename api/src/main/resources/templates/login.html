@@ -27,6 +27,7 @@
     <p class="form-error" th:if="${error}" th:text="${error}">Something went wrong.</p>
 
     <form th:action="@{/login}" method="post">
+      <input type="hidden" name="next" th:if="${next}" th:value="${next}">
       <label class="field">
         <span class="field-label">Email</span>
         <input class="input" type="email" name="email" required autocomplete="email"

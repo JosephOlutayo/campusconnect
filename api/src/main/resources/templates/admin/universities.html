@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Campuses · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/admin}">&larr; Admin</a>
+  <h1 class="page-title" style="margin-top:0.5rem">Campuses</h1>
+  <p class="page-sub">Every campus on the platform. Adding one is data entry, not a deploy.</p>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Could not do that.</p>
+
+  <div class="grid grid-3" style="margin-top:1rem">
+    <div class="card" th:each="c : ${campuses}">
+      <div th:style="'height:8px;background:' + ${c.color}"></div>
+      <div class="card-pad">
+        <div class="row">
+          <p style="font-weight:800" th:text="${c.shortName}">UTD</p>
+          <span class="badge" th:unless="${c.active}">Hidden</span>
+        </div>
+        <p class="tiny muted" style="margin:0.15rem 0 0" th:text="${c.name}">Full name</p>
+        <p class="tiny muted" style="margin:0.2rem 0 0"
+           th:text="${c.city} + ', ' + ${c.state}">Richardson, TX</p>
+
+        <div class="row" style="gap:1rem;margin-top:0.6rem">
+          <span class="tiny muted">Providers <strong th:text="${c.providerCount}">0</strong></span>
+          <span class="tiny muted">Accounts <strong th:text="${c.accounts}">0</strong></span>
+        </div>
+
+        <!-- The domains are what grant the campus-verified badge, so showing
+             them is the only way to notice a typo before students hit it. -->
+        <p class="tiny muted" style="margin:0.5rem 0 0"
+           th:if="${not #lists.isEmpty(c.domains)}"
+           th:text="'@' + ${#strings.listJoin(c.domains, ', @')}">@utdallas.edu</p>
+        <p class="tiny" style="margin:0.5rem 0 0;color:var(--warning)"
+           th:if="${#lists.isEmpty(c.domains)}">
+          No email domains — nobody here can earn the verified badge.
+        </p>
+
+        <div class="row" style="gap:0.5rem;margin-top:0.75rem">
+          <form th:action="@{'/admin/universities/' + ${c.id} + '/toggle'}" method="post" style="flex:1">
+            <button class="btn btn-secondary btn-block btn-sm" type="submit"
+                    th:text="${c.active} ? 'Hide' : 'Make live'">Hide</button>
+          </form>
+          <!-- Offered only when nothing is attached. The server refuses the rest
+               anyway, and a button that cannot work is worse than no button. -->
+          <form th:if="${c.accounts == 0 and c.providerCount == 0}"
+                th:action="@{'/admin/universities/' + ${c.id} + '/delete'}" method="post"
+                data-confirm="Delete this campus? This cannot be undone.">
+            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(campuses)}">
+    <div th:replace="~{fragments :: empty('🏫', 'No campuses yet',
+                      'Add one below — nobody can sign up until a campus exists.')}"></div>
+  </th:block>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">Add a campus</h2>
+
+  <form th:action="@{/admin/universities}" method="post" class="card card-pad" style="max-width:560px">
+    <label class="field">
+      <span class="field-label">Full name</span>
+      <input class="input" name="name" required placeholder="The University of Texas at Dallas">
+    </label>
+
+    <div class="row" style="gap:0.75rem;align-items:flex-start">
+      <label class="field" style="flex:1">
+        <span class="field-label">Short name</span>
+        <input class="input" name="shortName" required placeholder="UTD">
+      </label>
+      <label class="field" style="flex:1">
+        <span class="field-label">Slug</span>
+        <input class="input" name="slug" required placeholder="ut-dallas">
+        <span class="hint">Lower case, used in links.</span>
+      </label>
+    </div>
+
+    <div class="row" style="gap:0.75rem;align-items:flex-start">
+      <label class="field" style="flex:2">
+        <span class="field-label">City</span>
+        <input class="input" name="city" required placeholder="Richardson">
+      </label>
+      <label class="field" style="flex:1">
+        <span class="field-label">State</span>
+        <input class="input" name="state" required placeholder="TX">
+      </label>
+    </div>
+
+    <label class="field">
+      <span class="field-label">Email domains</span>
+      <input class="input" name="emailDomains" placeholder="utdallas.edu, student.utdallas.edu">
+      <span class="hint">
+        Comma separated. A student confirming an address on one of these earns the
+        campus-verified badge.
+      </span>
+    </label>
+
+    <button class="btn btn-block" type="submit" data-busy="Adding…">Add campus</button>
+  </form>
+
+</main>
+</body>
+</html>

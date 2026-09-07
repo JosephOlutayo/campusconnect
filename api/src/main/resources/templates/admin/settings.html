@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Marketplace settings · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/admin}">&larr; Admin</a>
+  <h1 class="page-title" style="margin-top:0.5rem">Marketplace settings</h1>
+  <p class="page-sub">How the platform behaves for everyone.</p>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Could not save.</p>
+  <p class="form-notice" style="margin-top:1rem;background:var(--success-soft);color:var(--success)"
+     th:if="${saved}">Saved.</p>
+
+  <form th:action="@{/admin/settings}" method="post" class="card card-pad"
+        style="max-width:480px;margin-top:1rem">
+    <label class="field">
+      <span class="field-label">Platform fee</span>
+      <input class="input" type="number" name="feePercent" min="0" max="50" step="0.5"
+             th:value="${feePercent}" required>
+      <!-- The fee is snapshotted onto each booking when it is made, so this is
+           genuinely forward-looking: changing it never rewrites history. -->
+      <span class="hint">
+        Percent taken from each booking. Existing bookings keep the split they
+        were created with.
+      </span>
+    </label>
+
+    <div class="field">
+      <label class="row">
+        <input type="checkbox" name="autoApprove" th:checked="${autoApprove}">
+        <span class="small">Approve new providers automatically</span>
+      </label>
+      <span class="hint">
+        Off means every new business waits for approval before appearing in search.
+      </span>
+    </div>
+
+    <button class="btn btn-block" type="submit" data-busy="Saving…">Save settings</button>
+  </form>
+
+</main>
+</body>
+</html>

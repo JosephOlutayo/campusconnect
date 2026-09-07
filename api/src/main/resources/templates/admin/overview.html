@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Admin overview · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <p class="eyebrow">Admin console</p>
+  <h1 class="page-title">Platform overview</h1>
+  <p class="page-sub">Everything happening across every campus.</p>
+
+  <div class="row" style="gap:0.5rem;margin-top:0.9rem;flex-wrap:wrap">
+    <a class="btn btn-secondary btn-sm" th:href="@{/admin/universities}">Campuses</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{/admin/providers}">Providers</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{/admin/users}">People</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{/admin/categories}">Categories</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{/admin/settings}">Settings</a>
+  </div>
+
+  <div class="grid grid-3" style="margin-top:1.25rem">
+    <div class="card card-pad">
+      <p class="tiny muted">People</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${userCount}">0</p>
+      <p class="tiny muted">accounts</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Providers</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${providerCount}">0</p>
+      <p class="tiny muted"
+         th:text="${pendingProviders} + ' awaiting approval'">0 awaiting approval</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Campuses</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${campusCount}">0</p>
+      <p class="tiny muted">universities</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Bookings</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${bookingCount}">0</p>
+      <p class="tiny muted">all time</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Reports</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${openReports}">0</p>
+      <p class="tiny muted">submitted</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Platform fee</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0"
+         th:text="${#numbers.formatDecimal(feePercent, 1, 0)} + '%'">10%</p>
+      <p class="tiny muted"
+         th:text="${autoApprove} ? 'Providers auto-approved' : 'Providers need approval'">
+        Providers auto-approved
+      </p>
+    </div>
+  </div>
+
+  <!-- Two things an admin should not have to discover by surprise. -->
+  <div class="form-notice" style="margin-top:1.25rem">
+    <strong>Payments are not live.</strong>
+    Bookings record a price and a fee split, but no card is charged and no money moves.
+  </div>
+
+</main>
+</body>
+</html>

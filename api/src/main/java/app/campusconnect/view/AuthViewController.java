@@ -58,8 +58,9 @@ public class AuthViewController {
     // --- sign in -------------------------------------------------------------
 
     @GetMapping("/login")
-    public String loginForm(Model model) {
+    public String loginForm(@RequestParam(name = "next", required = false) String next, Model model) {
         model.addAttribute("active", "login");
+        model.addAttribute("next", safeNext(next));
         return "login";
     }
 
@@ -75,20 +76,44 @@ public class AuthViewController {
      */
     public String login(@RequestParam String email,
                         @RequestParam String password,
+                        @RequestParam(name = "next", required = false) String next,
                         HttpServletResponse response,
                         Model model) {
         try {
             User user = authService.login(email, password);
             attachSession(response, user);
-            return "redirect:" + landingFor(user);
+            // Resume whatever they were trying to reach, rather than dumping
+            // them on a landing page and making them navigate back.
+            String target = safeNext(next);
+            return "redirect:" + (target != null ? target : landingFor(user));
         } catch (ApiException failed) {
             // Back to the form with the address kept, so only the password has
             // to be typed again.
             model.addAttribute("active", "login");
             model.addAttribute("error", failed.getMessage());
             model.addAttribute("email", email);
+            model.addAttribute("next", safeNext(next));
             return "login";
         }
+    }
+
+    /**
+     * Only ever an in-app path.
+     *
+     * Accepting an arbitrary value here would make the sign-in page an open
+     * redirect: a link to /login?next=https://evil.example could carry someone
+     * off the site immediately after they authenticate, which is exactly when
+     * they are least suspicious. A leading "//" is rejected too, since the
+     * browser reads that as protocol-relative and treats it as another host.
+     */
+    private String safeNext(String next) {
+        if (next == null || next.isBlank()) {
+            return null;
+        }
+        if (!next.startsWith("/") || next.startsWith("//")) {
+            return null;
+        }
+        return next;
     }
 
     // --- sign up -------------------------------------------------------------
