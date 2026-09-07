@@ -439,6 +439,35 @@ public class AdminController {
      * what makes "scale to hundreds of universities" real rather than a refactor
      * waiting to happen.
      */
+    /**
+     * Removes a campus outright — for correcting a mistyped entry, which
+     * otherwise had no remedy: hiding it only takes it off the public list and
+     * leaves it cluttering the admin one forever.
+     *
+     * Refused once anyone is attached to it. Deleting a campus out from under
+     * real accounts would leave students and providers pointing at a row that
+     * no longer exists; hiding is the right tool once a campus has been used.
+     */
+    @DeleteMapping("/universities/{id}")
+    @Transactional
+    public ApiResponse<Map<String, Object>> deleteUniversity(@PathVariable UUID id) {
+        University university = universities.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Campus not found."));
+
+        long accounts = users.countByUniversityId(id);
+        long providerProfiles = providers.countByUniversityId(id);
+        if (accounts > 0 || providerProfiles > 0) {
+            throw new ApiException(
+                    "This campus has " + accounts + " account(s) and " + providerProfiles
+                            + " provider(s) on it, so it cannot be deleted. Hide it instead.",
+                    org.springframework.http.HttpStatus.CONFLICT);
+        }
+
+        // The email domains are an element collection, so they go with it.
+        universities.delete(university);
+        return ApiResponse.ok(Map.of("deleted", true, "name", university.getName()));
+    }
+
     @PostMapping("/universities")
     @Transactional
     public ApiResponse<Map<String, String>> addUniversity(@Valid @RequestBody UniversityRequest request) {

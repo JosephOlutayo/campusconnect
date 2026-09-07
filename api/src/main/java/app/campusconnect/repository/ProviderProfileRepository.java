@@ -37,6 +37,9 @@ public interface ProviderProfileRepository extends JpaRepository<ProviderProfile
 
     long countByUniversityIdAndStatus(UUID universityId, ProviderStatus status);
 
+    /** Any status, including pending and rejected — all of them reference the campus. */
+    long countByUniversityId(UUID universityId);
+
     @Query("""
             select p from ProviderProfile p
             where p.status = :status

@@ -20,6 +20,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     long countByRole(Role role);
 
+    /** Guards campus deletion: a campus with accounts on it must not vanish. */
+    long countByUniversityId(UUID universityId);
+
     @Query("""
             select u from User u
             where (:role is null or u.role = :role)

@@ -29,6 +29,7 @@ export function UniversityManager({ universities }: { universities: University[]
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  const [deleting, setDeleting] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -76,6 +77,29 @@ export function UniversityManager({ universities }: { universities: University[]
     setOpen(false);
     toast("Campus added. Students can select it at signup right away.");
     router.refresh();
+  };
+
+  const remove = async (university: University) => {
+    // Destructive and not undoable, so make the person say the name back.
+    if (!window.confirm(`Delete ${university.name}? This cannot be undone.`)) return;
+
+    setDeleting(university.id);
+    try {
+      const response = await fetch(`/api/admin/universities/${university.id}`, {
+        method: "DELETE",
+      });
+      const payload = await response.json();
+      if (!payload.ok) {
+        toast(payload.error ?? "Could not delete the campus.", "error");
+        return;
+      }
+      toast(`${university.name} deleted.`);
+      router.refresh();
+    } catch {
+      toast("Could not reach the server. Try again.", "error");
+    } finally {
+      setDeleting(null);
+    }
   };
 
   const toggle = async (university: University) => {
@@ -134,12 +158,27 @@ export function UniversityManager({ universities }: { universities: University[]
                   : "No email domains set"}
               </p>
 
-              <button
-                onClick={() => toggle(university)}
-                className="mt-3 w-full rounded-xl bg-surface-muted py-2 text-xs font-semibold text-ink-soft transition-colors hover:bg-accent-soft hover:text-accent"
-              >
-                {university.isActive ? "Hide campus" : "Activate campus"}
-              </button>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => toggle(university)}
+                  className="flex-1 rounded-xl bg-surface-muted py-2 text-xs font-semibold text-ink-soft transition-colors hover:bg-accent-soft hover:text-accent"
+                >
+                  {university.isActive ? "Hide campus" : "Activate campus"}
+                </button>
+                {/* Only offered while nothing is attached. Once a campus has
+                    accounts on it the server refuses anyway, and hiding is the
+                    correct action — so do not tempt anyone with the button. */}
+                {university.providerCount === 0 && university.userCount === 0 ? (
+                  <button
+                    onClick={() => remove(university)}
+                    disabled={deleting === university.id}
+                    aria-label={`Delete ${university.name}`}
+                    className="rounded-xl bg-surface-muted px-3 py-2 text-xs font-semibold text-ink-soft transition-colors hover:bg-danger/10 hover:text-danger disabled:opacity-50"
+                  >
+                    {deleting === university.id ? "Deleting…" : "Delete"}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </article>
         ))}
