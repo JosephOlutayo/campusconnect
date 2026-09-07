@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Services · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <a class="small muted" th:href="@{/provider}">&larr; Dashboard</a>
+  <h1 class="page-title" style="margin-top:0.5rem">Services</h1>
+  <p class="page-sub">What students can book, and what it costs.</p>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Could not do that.</p>
+
+  <div class="stack" style="margin-top:1rem">
+    <div class="card card-pad" th:each="s : ${services}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700">
+            <span th:text="${s.title}">Haircut</span>
+            <span class="badge" th:unless="${s.active}" style="margin-left:0.4rem">Hidden</span>
+          </p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${s.durationMinutes} + ' min · ' + ${s.category.name}">45 min · Barbering</p>
+          <p class="small muted" style="margin:0.35rem 0 0" th:text="${s.description}">Description</p>
+        </div>
+        <div style="text-align:right">
+          <p class="price" th:text="'$' + ${#numbers.formatDecimal(s.priceCents / 100.0, 1, 2)}">$25.00</p>
+          <form th:action="@{'/provider/services/' + ${s.id} + '/remove'}" method="post"
+                style="margin-top:0.5rem"
+                data-confirm="Remove this service? Existing bookings are not affected.">
+            <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <th:block th:if="${#lists.isEmpty(services)}">
+    <div th:replace="~{fragments :: empty('📋', 'Nothing listed yet',
+                      'Add a service below so students can book you.')}"></div>
+  </th:block>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">Add a service</h2>
+
+  <form th:action="@{/provider/services}" method="post" class="card card-pad" style="max-width:560px">
+    <label class="field">
+      <span class="field-label">Name</span>
+      <input class="input" name="title" required minlength="2" maxlength="140" placeholder="Beard trim">
+    </label>
+
+    <label class="field">
+      <span class="field-label">What it includes</span>
+      <textarea class="textarea" name="description" required minlength="10" maxlength="2000" rows="3"
+                placeholder="Shape-up, line and hot towel finish."></textarea>
+    </label>
+
+    <label class="field">
+      <span class="field-label">Category</span>
+      <select class="select" name="categoryId" required>
+        <option value="">Choose one</option>
+        <option th:each="c : ${categories}" th:value="${c.id}"
+                th:text="${c.icon} + ' ' + ${c.name}">Barbering</option>
+      </select>
+    </label>
+
+    <div class="row" style="gap:0.75rem;align-items:flex-start">
+      <label class="field" style="flex:1">
+        <span class="field-label">Price</span>
+        <input class="input" name="price" required placeholder="15">
+        <span class="hint">In dollars.</span>
+      </label>
+      <label class="field" style="flex:1">
+        <span class="field-label">How long</span>
+        <select class="select" name="durationMinutes" required>
+          <option value="15">15 minutes</option>
+          <option value="30" selected>30 minutes</option>
+          <option value="45">45 minutes</option>
+          <option value="60">1 hour</option>
+          <option value="90">1 hour 30</option>
+          <option value="120">2 hours</option>
+        </select>
+      </label>
+    </div>
+
+    <!-- Left empty on purpose: a service with no options of its own falls back
+         to the provider's, so most people never need to touch this. -->
+    <div class="field">
+      <span class="field-label">Where <span class="muted">(optional)</span></span>
+      <label class="row" style="margin-bottom:0.35rem">
+        <input type="checkbox" name="locationModes" value="AT_PROVIDER">
+        <span class="small">They come to you</span>
+      </label>
+      <label class="row" style="margin-bottom:0.35rem">
+        <input type="checkbox" name="locationModes" value="AT_CUSTOMER">
+        <span class="small">You go to them</span>
+      </label>
+      <label class="row">
+        <input type="checkbox" name="locationModes" value="ONLINE">
+        <span class="small">Online</span>
+      </label>
+      <span class="hint">Leave all unticked to use your business defaults.</span>
+    </div>
+
+    <button class="btn btn-block" type="submit" data-busy="Adding…">Add service</button>
+  </form>
+
+</main>
+</body>
+</html>

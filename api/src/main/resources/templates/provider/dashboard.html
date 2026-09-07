@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Provider dashboard · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <p class="eyebrow">Your business</p>
+  <h1 class="page-title" th:text="${provider.businessName}">Business</h1>
+  <p class="page-sub" th:text="${provider.tagline}">Tagline</p>
+
+  <div class="row" style="gap:0.5rem;margin-top:0.9rem;flex-wrap:wrap">
+    <a class="btn btn-secondary btn-sm" th:href="@{/provider/bookings}">Bookings</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{/provider/services}">Services</a>
+    <a class="btn btn-secondary btn-sm" th:href="@{'/providers/' + ${provider.id}}">View public page</a>
+  </div>
+
+  <div class="grid grid-3" style="margin-top:1.25rem">
+    <div class="card card-pad">
+      <p class="tiny muted">Waiting on you</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${stats.pendingRequests}">0</p>
+      <p class="tiny muted">booking requests</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Upcoming</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${stats.upcoming}">0</p>
+      <p class="tiny muted">confirmed appointments</p>
+    </div>
+    <div class="card card-pad">
+      <p class="tiny muted">Completed</p>
+      <p style="font-size:1.6rem;font-weight:800;margin:0.2rem 0 0" th:text="${stats.completedAllTime}">0</p>
+      <p class="tiny muted">all time</p>
+    </div>
+  </div>
+
+  <div class="card card-pad" style="margin-top:0.9rem;background:var(--feature);color:#fff;border:0">
+    <p class="tiny" style="opacity:0.7">Earned this month</p>
+    <p style="font-size:2rem;font-weight:800;margin:0.2rem 0 0"
+       th:text="'$' + ${#numbers.formatDecimal(stats.earnedThisMonthCents / 100.0, 1, 2)}">$0.00</p>
+    <p class="tiny" style="opacity:0.7"
+       th:text="'$' + ${#numbers.formatDecimal(stats.earnedAllTimeCents / 100.0, 1, 2)} + ' all time, after the platform fee'">
+      $0.00 all time
+    </p>
+    <!-- The figures above are real bookings, but no money has actually moved. -->
+    <p class="tiny" style="opacity:0.7;margin-top:0.75rem">
+      Payment is arranged directly with each student. Nothing is collected here yet.
+    </p>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">Waiting for your answer</h2>
+
+  <th:block th:if="${#lists.isEmpty(pending)}">
+    <div th:replace="~{fragments :: empty('✅', 'Nothing waiting',
+                      'New booking requests will appear here.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(pending)}">
+    <div class="card card-pad" th:each="b : ${pending}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700" th:text="${b.customer.name}">Student</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${b.service.title} + ' · ' + ${#temporals.format(b.startAt, 'EEE d MMM, h:mm a')}">
+            Haircut · Mon 7 Sep, 10:00 AM
+          </p>
+        </div>
+        <span class="badge badge-warning">PENDING</span>
+      </div>
+      <div class="row" style="gap:0.5rem;margin-top:0.75rem">
+        <form th:action="@{'/provider/bookings/' + ${b.id} + '/confirm'}" method="post" style="flex:1">
+          <button class="btn btn-block btn-sm" type="submit" data-busy="Confirming…">Confirm</button>
+        </form>
+        <form th:action="@{'/provider/bookings/' + ${b.id} + '/decline'}" method="post" style="flex:1"
+              data-confirm="Decline this booking?">
+          <button class="btn btn-secondary btn-block btn-sm" type="submit">Decline</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="font-size:1.05rem;font-weight:800;margin:1.75rem 0 0.6rem">Coming up</h2>
+
+  <th:block th:if="${#lists.isEmpty(upcoming)}">
+    <div th:replace="~{fragments :: empty('📅', 'Nothing booked yet',
+                      'Confirmed appointments show up here.')}"></div>
+  </th:block>
+
+  <div class="stack" th:unless="${#lists.isEmpty(upcoming)}">
+    <div class="card card-pad" th:each="b : ${upcoming}">
+      <div class="row-between">
+        <div>
+          <p style="font-weight:700" th:text="${b.customer.name}">Student</p>
+          <p class="tiny muted" style="margin:0.15rem 0 0"
+             th:text="${b.service.title} + ' · ' + ${#temporals.format(b.startAt, 'EEE d MMM, h:mm a')}">
+            Haircut · Mon 7 Sep, 10:00 AM
+          </p>
+        </div>
+        <span class="badge badge-success">CONFIRMED</span>
+      </div>
+    </div>
+  </div>
+
+</main>
+</body>
+</html>

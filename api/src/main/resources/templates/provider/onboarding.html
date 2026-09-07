@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en"
+      th:replace="~{layout :: page(~{::title}, ~{::main})}">
+<head><title>Set up your business · CampusConnect</title></head>
+<body>
+<main class="main">
+
+  <h1 class="page-title">Set up your business</h1>
+  <p class="page-sub">This is what students see. You can change any of it later.</p>
+
+  <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Something went wrong.</p>
+
+  <form th:action="@{/provider/onboarding}" method="post" style="max-width:640px;margin-top:1.25rem">
+
+    <div class="card card-pad">
+      <p class="field-label" style="font-size:0.9rem;margin-bottom:0.75rem">Your business</p>
+
+      <label class="field">
+        <span class="field-label">Business name</span>
+        <input class="input" name="businessName" required minlength="2" maxlength="120"
+               th:value="${form != null} ? ${form.businessName} : ''" placeholder="kunmi_cutzs">
+      </label>
+
+      <label class="field">
+        <span class="field-label">Tagline <span class="muted">(optional)</span></span>
+        <input class="input" name="tagline" maxlength="160"
+               th:value="${form != null} ? ${form.tagline} : ''"
+               placeholder="Fades, tapers and line-ups on campus">
+      </label>
+
+      <label class="field">
+        <span class="field-label">About your work</span>
+        <textarea class="textarea" name="bio" required minlength="20" maxlength="4000" rows="4"
+                  th:text="${form != null} ? ${form.bio} : ''"
+                  placeholder="What you do, how long you have been doing it, what students can expect."></textarea>
+        <span class="hint">At least 20 characters.</span>
+      </label>
+    </div>
+
+    <div class="card card-pad" style="margin-top:0.9rem">
+      <p class="field-label" style="font-size:0.9rem;margin-bottom:0.75rem">Where you work</p>
+
+      <label class="field">
+        <span class="field-label">Area</span>
+        <input class="input" name="locationLabel" required minlength="3" maxlength="160"
+               th:value="${form != null} ? ${form.locationLabel} : ''"
+               placeholder="Near UT Dallas campus, Richardson">
+        <span class="hint">Shown publicly. Keep it general — a neighbourhood, not an address.</span>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Exact address <span class="muted">(optional)</span></span>
+        <input class="input" name="exactAddress" maxlength="250" placeholder="12 Example St, Apt 4">
+        <!-- The rule this form is promising is enforced in BookingDto, not here. -->
+        <span class="hint">
+          Never shown publicly. Released only to a student whose booking you have confirmed.
+        </span>
+      </label>
+
+      <div class="field">
+        <span class="field-label">How the appointment happens</span>
+        <label class="row" style="margin-bottom:0.35rem">
+          <input type="checkbox" name="locationModes" value="AT_PROVIDER" checked>
+          <span class="small">They come to you</span>
+        </label>
+        <label class="row" style="margin-bottom:0.35rem">
+          <input type="checkbox" name="locationModes" value="AT_CUSTOMER">
+          <span class="small">You go to them</span>
+        </label>
+        <label class="row">
+          <input type="checkbox" name="locationModes" value="ONLINE">
+          <span class="small">Online</span>
+        </label>
+        <span class="hint">Pick at least one.</span>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:0.9rem">
+      <p class="field-label" style="font-size:0.9rem;margin-bottom:0.75rem">Your first service</p>
+      <span class="hint" style="display:block;margin-bottom:0.75rem">
+        You need one thing bookable to appear in search. Add more later.
+      </span>
+
+      <label class="field">
+        <span class="field-label">Category</span>
+        <select class="select" name="categoryId" required>
+          <option value="">Choose one</option>
+          <option th:each="c : ${categories}" th:value="${c.id}"
+                  th:text="${c.icon} + ' ' + ${c.name}">Barbering</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Service name</span>
+        <input class="input" name="serviceTitle" required maxlength="140" placeholder="Haircut">
+      </label>
+
+      <label class="field">
+        <span class="field-label">What it includes</span>
+        <textarea class="textarea" name="serviceDescription" required minlength="10" maxlength="2000"
+                  rows="3" placeholder="Standard haircut with a fade or taper, edge-up and finish."></textarea>
+      </label>
+
+      <div class="row" style="gap:0.75rem;align-items:flex-start">
+        <label class="field" style="flex:1">
+          <span class="field-label">Price</span>
+          <input class="input" name="price" required placeholder="25" th:value="${price}">
+          <span class="hint">In dollars.</span>
+        </label>
+        <label class="field" style="flex:1">
+          <span class="field-label">How long</span>
+          <select class="select" name="durationMinutes" required>
+            <option value="15">15 minutes</option>
+            <option value="30">30 minutes</option>
+            <option value="45" selected>45 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="90">1 hour 30</option>
+            <option value="120">2 hours</option>
+            <option value="180">3 hours</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <button class="btn btn-block" type="submit" style="margin-top:1rem" data-busy="Setting up…">
+      Create my business
+    </button>
+  </form>
+
+</main>
+</body>
+</html>
