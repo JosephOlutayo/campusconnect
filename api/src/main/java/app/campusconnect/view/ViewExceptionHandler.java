@@ -4,6 +4,8 @@ import app.campusconnect.web.ApiException;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -21,7 +23,16 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  * The template is called page-error, not error: Spring Boot resolves a view
  * literally named "error" for its own fallback error page, and taking that name
  * would start answering API failures with HTML too.
+ *
+ * The @Order is load-bearing, not decoration. Without it this advice and the
+ * API's sat at the same (lowest) precedence, so which one handled a page
+ * controller's exception came down to bean registration order — it picked this
+ * one locally and the JSON one in the container, where every error a browser
+ * hit turned into a blank 500. Spring cannot write a JSON body for a request
+ * that asked for HTML, so content negotiation fails and the real message is
+ * lost. Explicit precedence, so the same handler runs everywhere.
  */
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @ControllerAdvice(basePackages = "app.campusconnect.view")
 public class ViewExceptionHandler {
 

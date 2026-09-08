@@ -6,6 +6,7 @@ import app.campusconnect.domain.ProviderProfile;
 import app.campusconnect.repository.BookingRepository;
 import app.campusconnect.repository.AvailabilityRuleRepository;
 import app.campusconnect.repository.CategoryRepository;
+import app.campusconnect.repository.ProviderProfileRepository;
 import app.campusconnect.repository.ServiceOfferingRepository;
 import app.campusconnect.security.AuthenticatedUser;
 import app.campusconnect.security.CurrentUser;
@@ -54,19 +55,22 @@ public class ProviderViewController {
     private final ServiceOfferingRepository services;
     private final CategoryRepository categories;
     private final AvailabilityRuleRepository rules;
+    private final ProviderProfileRepository profiles;
 
     public ProviderViewController(ProviderService providerService,
                                   BookingService bookingService,
                                   BookingRepository bookings,
                                   ServiceOfferingRepository services,
                                   CategoryRepository categories,
-                                  AvailabilityRuleRepository rules) {
+                                  AvailabilityRuleRepository rules,
+                                  ProviderProfileRepository profiles) {
         this.providerService = providerService;
         this.bookingService = bookingService;
         this.bookings = bookings;
         this.services = services;
         this.categories = categories;
         this.rules = rules;
+        this.profiles = profiles;
     }
 
     // --- setting up ----------------------------------------------------------
@@ -78,14 +82,12 @@ public class ProviderViewController {
             return "redirect:/login";
         }
         // Somebody who already has a business does not need this page again.
-        try {
-            providerService.requireOwned(me.id());
+        if (ownedOrNull(me) != null) {
             return "redirect:/provider";
-        } catch (ApiException notYet) {
-            model.addAttribute("active", "provider");
-            model.addAttribute("categories", categories.findByActiveTrueOrderBySortOrderAsc());
-            return "provider/onboarding";
         }
+        model.addAttribute("active", "provider");
+        model.addAttribute("categories", categories.findByActiveTrueOrderBySortOrderAsc());
+        return "provider/onboarding";
     }
 
     @PostMapping("/onboarding")
@@ -386,12 +388,19 @@ public class ProviderViewController {
     public record DayRow(String day, String label, boolean open, String start, String end) {
     }
 
+    /**
+     * The signed-in person's business, or null if they do not have one.
+     *
+     * Asks the repository rather than catching ProviderService.requireOwned.
+     * That method throws to say "no profile", and catching a throw that crossed
+     * a transaction boundary leaves the shared transaction marked rollback-only
+     * — the commit at the end of the request then fails with
+     * UnexpectedRollbackException, so a student who merely clicked a provider
+     * link got a 500 instead of the onboarding page. "Do they have one?" is a
+     * question, not an error, so it is asked as one.
+     */
     private ProviderProfile ownedOrNull(AuthenticatedUser me) {
-        try {
-            return providerService.requireOwned(me.id());
-        } catch (ApiException noBusinessYet) {
-            return null;
-        }
+        return profiles.findByUserId(me.id()).orElse(null);
     }
 
     /**

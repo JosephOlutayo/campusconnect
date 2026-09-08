@@ -6,6 +6,7 @@ import app.campusconnect.security.AuthenticatedUser;
 import app.campusconnect.security.CurrentUser;
 import app.campusconnect.service.AuthService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -40,9 +41,17 @@ public class ViewModelAdvice {
      * The signed-in user, or null for a visitor.
      *
      * Returning the entity rather than the token claims means templates can
-     * reach the name and avatar without a second lookup on every page.
+     * reach the name and avatar without a second lookup on every page. The cost
+     * is that the entity arrives at the template detached: open-in-view is off,
+     * so rendering happens after the transaction has closed and any association
+     * still lazy blows up mid-render — as a 500 no exception handler can catch,
+     * because the response has already started.
+     *
+     * The campus is therefore loaded here, inside the transaction. Anything else
+     * a template needs from this object has to be initialised here too.
      */
     @ModelAttribute("currentUser")
+    @Transactional(readOnly = true)
     public User currentUser(@CurrentUser AuthenticatedUser me) {
         if (me == null) {
             return null;
@@ -50,7 +59,11 @@ public class ViewModelAdvice {
         // A token can outlive the account it names — someone deleted mid-session
         // should read as signed out, not crash the page.
         try {
-            return authService.require(me.id());
+            User user = authService.require(me.id());
+            if (user.getUniversity() != null) {
+                user.getUniversity().getShortName();
+            }
+            return user;
         } catch (RuntimeException notFound) {
             return null;
         }

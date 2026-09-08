@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.PessimisticLockingFailureException;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -21,15 +22,24 @@ import java.util.List;
  * One error funnel for the whole API. Domain failures carry their own status;
  * anything unexpected is logged server-side and returned as a generic 500 so
  * internals never leak to a client.
+ *
+ * Scoped to this package deliberately. Unscoped, it also caught exceptions from
+ * the page controllers and answered them with JSON — which a browser asking for
+ * HTML cannot accept, so the response died as a blank 500 instead of showing
+ * the message. Pages are handled by ViewExceptionHandler.
+ *
+ * Every response here also pins Content-Type to JSON. Left to negotiate, a
+ * request that asks for HTML — somebody opening an /api/ URL in a browser —
+ * finds no converter that can answer it, and the error dies as a blank 500.
  */
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "app.campusconnect.web")
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiResponse<Void>> handleApi(ApiException ex) {
-        return ResponseEntity.status(ex.getStatus()).body(ApiResponse.fail(ex.getMessage()));
+        return ResponseEntity.status(ex.getStatus()).contentType(MediaType.APPLICATION_JSON).body(ApiResponse.fail(ex.getMessage()));
     }
 
     /** Bean-validation failures become a 422 with per-field detail. */
@@ -39,7 +49,7 @@ public class GlobalExceptionHandler {
                 .map(error -> new ApiResponse.FieldIssue(error.getField(), error.getDefaultMessage()))
                 .toList();
         String first = issues.isEmpty() ? "Invalid input." : issues.get(0).message();
-        return ResponseEntity.unprocessableEntity().body(ApiResponse.fail(first, issues));
+        return ResponseEntity.unprocessableEntity().contentType(MediaType.APPLICATION_JSON).body(ApiResponse.fail(first, issues));
     }
 
     /**
@@ -50,14 +60,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({PessimisticLockingFailureException.class, CannotAcquireLockException.class})
     public ResponseEntity<ApiResponse<Void>> handleLock(Exception ex) {
         log.debug("Lock contention on booking write", ex);
-        return ResponseEntity.status(HttpStatus.CONFLICT)
+        return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.fail("That time was just booked. Please choose another slot."));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleIntegrity(DataIntegrityViolationException ex) {
         log.debug("Constraint violation", ex);
-        return ResponseEntity.status(HttpStatus.CONFLICT)
+        return ResponseEntity.status(HttpStatus.CONFLICT).contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.fail("That conflicts with something that already exists."));
     }
 
@@ -67,7 +77,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadParam(MethodArgumentTypeMismatchException ex) {
-        return ResponseEntity.badRequest()
+        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.fail("Invalid value for '" + ex.getName() + "'."));
     }
 
@@ -86,19 +96,19 @@ public class GlobalExceptionHandler {
                 field = " Check the '" + name + "' field.";
             }
         }
-        return ResponseEntity.badRequest()
+        return ResponseEntity.badRequest().contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.fail("That request body could not be read." + field));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleDenied(AccessDeniedException ex) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.fail("Not allowed."));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).contentType(MediaType.APPLICATION_JSON).body(ApiResponse.fail("Not allowed."));
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception ex) {
         log.error("Unhandled exception", ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).contentType(MediaType.APPLICATION_JSON)
                 .body(ApiResponse.fail("Something went wrong. Please try again."));
     }
 }
