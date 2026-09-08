@@ -16,6 +16,9 @@ public interface FavoriteRepository extends JpaRepository<Favorite, UUID> {
 
     void deleteByUserIdAndProviderId(UUID userId, UUID providerId);
 
+    /** Cleanup when an unused account is deleted. */
+    void deleteByUserId(UUID userId);
+
     long countByUserId(UUID userId);
 
     /** Just the ids, for marking hearts on a page of search results. */

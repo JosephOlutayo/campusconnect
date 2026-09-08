@@ -27,6 +27,8 @@ public interface ReviewRepository extends JpaRepository<Review, UUID> {
 
     long countByProviderIdAndHiddenFalse(UUID providerId);
 
+    long countByAuthorId(UUID authorId);
+
     /** Star histogram across ALL visible reviews, not just a rendered page. */
     @Query("select r.rating, count(r) from Review r " +
            "where r.provider.id = :providerId and r.hidden = false group by r.rating")

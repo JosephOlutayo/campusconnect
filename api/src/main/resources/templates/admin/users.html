@@ -10,6 +10,8 @@
   <p class="page-sub">Every account on the platform.</p>
 
   <p class="form-error" style="margin-top:1rem" th:if="${error}" th:text="${error}">Could not do that.</p>
+  <p class="form-notice" style="margin-top:1rem;background:var(--success-soft);color:var(--success)"
+     th:if="${notice}" th:text="${notice}">Done.</p>
 
   <form class="searchbar" th:action="@{/admin/users}" method="get">
     <input class="input" type="search" name="q" th:value="${q}" placeholder="Search name or email">
@@ -32,12 +34,22 @@
                   th:text="${p.university.shortName}">UTD</span>
           </div>
         </div>
-        <form th:action="@{'/admin/users/' + ${p.id} + '/suspend'}" method="post"
-              th:attr="data-confirm=${p.suspended} ? null : 'Suspend this account?'">
-          <button class="btn btn-sm" type="submit"
-                  th:classappend="${p.suspended} ? 'btn-secondary' : 'btn-danger'"
-                  th:text="${p.suspended} ? 'Restore' : 'Suspend'">Suspend</button>
-        </form>
+        <div class="row" style="gap:0.4rem;align-items:flex-start">
+          <form th:action="@{'/admin/users/' + ${p.id} + '/suspend'}" method="post"
+                th:attr="data-confirm=${p.suspended} ? null : 'Suspend this account?'">
+            <button class="btn btn-sm" type="submit"
+                    th:classappend="${p.suspended} ? 'btn-secondary' : 'btn-danger'"
+                    th:text="${p.suspended} ? 'Restore' : 'Suspend'">Suspend</button>
+          </form>
+
+          <!-- Deleting is only possible for an account that has never booked,
+               reviewed or messaged; the server checks and explains rather than
+               failing. Suspend is the tool for anyone with history. -->
+          <form th:action="@{'/admin/users/' + ${p.id} + '/delete'}" method="post"
+                data-confirm="Delete this account permanently? This cannot be undone.">
+            <button class="btn btn-secondary btn-sm" type="submit">Delete</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>

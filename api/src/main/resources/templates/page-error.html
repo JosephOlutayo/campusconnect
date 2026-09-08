@@ -8,7 +8,8 @@
   <div class="card card-pad" style="max-width:440px;margin:2rem auto;text-align:center">
     <p class="eyebrow" th:text="${status} ?: 'Error'">404</p>
     <h1 class="page-title" style="margin:0.3rem 0 0"
-        th:text="${status == 404} ? 'Not found' : 'Something went wrong'">Not found</h1>
+        th:text="${status == 404} ? 'Not found'
+                 : (${status == 403} ? 'Not allowed' : 'Something went wrong')">Not found</h1>
     <p class="page-sub" th:text="${message} ?: 'Please try again.'">
       That address does not point at anything.
     </p>

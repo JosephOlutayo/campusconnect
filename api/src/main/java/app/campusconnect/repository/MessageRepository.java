@@ -16,6 +16,8 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     long countByConversationIdAndReadAtIsNullAndSenderIdNot(UUID conversationId, UUID senderId);
 
+    long countBySenderId(UUID senderId);
+
     /** Unread across every thread this account participates in. */
     @Query("""
             select count(m) from Message m

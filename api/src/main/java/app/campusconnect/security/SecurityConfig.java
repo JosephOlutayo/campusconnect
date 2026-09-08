@@ -70,6 +70,9 @@ public class SecurityConfig {
                                 "/", "/explore", "/categories", "/campuses",
                                 "/providers/**", "/campuses/**", "/legal/**",
                                 "/login", "/signup", "/verify-email",
+                                // The access-denied page itself must never need
+                                // access, or a refusal becomes a redirect loop.
+                                "/denied",
                                 "/css/**", "/js/**", "/favicon.ico",
                                 "/icon-*.png", "/apple-touch-icon.png",
                                 "/manifest.webmanifest").permitAll()

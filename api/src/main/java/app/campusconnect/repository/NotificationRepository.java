@@ -16,6 +16,9 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     long countByUserIdAndReadAtIsNull(UUID userId);
 
+    /** Cleanup when an unused account is deleted; nobody else can read these. */
+    void deleteByUserId(UUID userId);
+
     @Modifying
     @Query("update Notification n set n.readAt = :now where n.user.id = :userId and n.readAt is null")
     int markAllRead(@Param("userId") UUID userId, @Param("now") Instant now);

@@ -107,6 +107,19 @@ public class BrowseViewController {
     }
 
     /**
+     * Where Spring Security sends a signed-in person who is not allowed
+     * somewhere. It answers 403 rather than 200: the page is a refusal, and a
+     * refusal that reports success is a lie to anything reading the status.
+     */
+    @GetMapping("/denied")
+    public String denied(jakarta.servlet.http.HttpServletResponse response, Model model) {
+        response.setStatus(403);
+        model.addAttribute("status", 403);
+        model.addAttribute("message", "You do not have access to that. If you think you should, ask an administrator.");
+        return "page-error";
+    }
+
+    /**
      * One campus and who works around it.
      *
      * Addressed by slug rather than id so the link is readable and survives the

@@ -79,8 +79,10 @@ public class JsonAuthEntryPoint implements AuthenticationEntryPoint, AccessDenie
                        AccessDeniedException ex) throws IOException {
         if (wantsHtml(request)) {
             // Signing in again would not help — they are already signed in and
-            // still not allowed — so send them somewhere that works.
-            response.sendRedirect("/?denied=1");
+            // still not allowed. This used to drop them on the home page with a
+            // "?denied=1" nothing rendered, so the click just appeared to do
+            // nothing. Send them to a page that says what happened.
+            response.sendRedirect("/denied");
             return;
         }
         write(response, HttpStatus.FORBIDDEN, "You do not have access to that.");

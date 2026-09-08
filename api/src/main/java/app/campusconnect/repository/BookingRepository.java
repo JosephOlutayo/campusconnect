@@ -95,6 +95,9 @@ public interface BookingRepository extends JpaRepository<Booking, UUID> {
 
     long countByCustomerIdAndStatus(UUID customerId, BookingStatus status);
 
+    /** Any booking at all, used to decide whether an account can be deleted. */
+    long countByCustomerId(UUID customerId);
+
     @Query("""
             select b from Booking b
             where b.provider.id = :providerId and b.startAt >= :from and b.startAt < :to

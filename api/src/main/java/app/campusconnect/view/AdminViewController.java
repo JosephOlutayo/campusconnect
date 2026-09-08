@@ -8,6 +8,11 @@ import app.campusconnect.domain.Role;
 import app.campusconnect.domain.University;
 import app.campusconnect.domain.User;
 import app.campusconnect.repository.BookingRepository;
+import app.campusconnect.repository.EmailVerificationTokenRepository;
+import app.campusconnect.repository.FavoriteRepository;
+import app.campusconnect.repository.MessageRepository;
+import app.campusconnect.repository.NotificationRepository;
+import app.campusconnect.repository.ReviewRepository;
 import app.campusconnect.repository.CategoryRepository;
 import app.campusconnect.repository.ProviderProfileRepository;
 import app.campusconnect.repository.ReportRepository;
@@ -51,6 +56,11 @@ public class AdminViewController {
     private final CategoryRepository categories;
     private final ReportRepository reports;
     private final SettingsService settings;
+    private final ReviewRepository reviews;
+    private final MessageRepository messages;
+    private final FavoriteRepository favorites;
+    private final NotificationRepository notifications;
+    private final EmailVerificationTokenRepository verificationTokens;
 
     public AdminViewController(UserRepository users,
                                ProviderProfileRepository providers,
@@ -58,7 +68,12 @@ public class AdminViewController {
                                UniversityRepository universities,
                                CategoryRepository categories,
                                ReportRepository reports,
-                               SettingsService settings) {
+                               SettingsService settings,
+                               ReviewRepository reviews,
+                               MessageRepository messages,
+                               FavoriteRepository favorites,
+                               NotificationRepository notifications,
+                               EmailVerificationTokenRepository verificationTokens) {
         this.users = users;
         this.providers = providers;
         this.bookings = bookings;
@@ -66,6 +81,11 @@ public class AdminViewController {
         this.categories = categories;
         this.reports = reports;
         this.settings = settings;
+        this.reviews = reviews;
+        this.messages = messages;
+        this.favorites = favorites;
+        this.notifications = notifications;
+        this.verificationTokens = verificationTokens;
     }
 
     // --- overview ------------------------------------------------------------
@@ -175,10 +195,12 @@ public class AdminViewController {
     @Transactional(readOnly = true)
     public String userList(@RequestParam(required = false) String q,
                            @RequestParam(required = false) String error,
+                           @RequestParam(required = false) String notice,
                            Model model) {
         model.addAttribute("active", "admin");
         model.addAttribute("q", q);
         model.addAttribute("error", error);
+        model.addAttribute("notice", notice);
         // "" rather than null: PostgreSQL cannot type a null parameter used both
         // in an `is null` test and inside concat().
         var people = users.search(q == null || q.isBlank() ? "" : q.trim(), null);
@@ -206,6 +228,55 @@ public class AdminViewController {
         person.setSuspended(!person.isSuspended());
         users.save(person);
         return "redirect:/admin/users";
+    }
+
+    /**
+     * Deletes an account outright.
+     *
+     * Only ever an account that has done nothing. A person who has booked,
+     * reviewed or messaged is part of somebody else's history: deleting them
+     * would either break those records or quietly rewrite what another person
+     * can see about their own appointment. Suspending is the tool for that, and
+     * the refusal says so rather than just failing.
+     *
+     * The rows removed alongside are the ones nobody else can see — saved
+     * providers, this account's own notifications, and any unused verification
+     * link.
+     */
+    @PostMapping("/users/{id}/delete")
+    @Transactional
+    public String deleteUser(@PathVariable UUID id, @CurrentUser AuthenticatedUser me) {
+        User person = users.findById(id)
+                .orElseThrow(() -> ApiException.notFound("User not found."));
+
+        if (me != null && person.getId().equals(me.id())) {
+            return redirectWithError("/admin/users", "You cannot delete your own account.");
+        }
+        if (person.getRole() == Role.ADMIN && users.countByRole(Role.ADMIN) <= 1) {
+            return redirectWithError("/admin/users",
+                    "This is the only administrator. Deleting it would lock everyone out of the console.");
+        }
+        if (providers.findByUserId(id).isPresent()) {
+            return redirectWithError("/admin/users",
+                    "This account runs a business. Suspend the provider under Providers instead.");
+        }
+
+        long bookings_ = bookings.countByCustomerId(id);
+        long reviews_ = reviews.countByAuthorId(id);
+        long messages_ = messages.countBySenderId(id);
+        if (bookings_ > 0 || reviews_ > 0 || messages_ > 0) {
+            return redirectWithError("/admin/users",
+                    "This account has " + bookings_ + " booking(s), " + reviews_ + " review(s) and "
+                            + messages_ + " message(s), which belong to other people's records too. "
+                            + "Suspend it instead.");
+        }
+
+        favorites.deleteByUserId(id);
+        notifications.deleteByUserId(id);
+        verificationTokens.deleteByUser(person);
+        users.delete(person);
+        return "redirect:/admin/users?notice="
+                + URLEncoder.encode("Deleted " + person.getEmail() + ".", StandardCharsets.UTF_8);
     }
 
     // --- providers -----------------------------------------------------------
