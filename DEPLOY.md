@@ -183,6 +183,26 @@ With no `MAIL_HOST` set (local development), the app prints the verification
 link to the API console instead of sending it, so the flow can be tested with
 no email account.
 
+### What is currently set up on the live deployment
+
+Recorded here so it can be rebuilt by hand if the database is ever lost. It is
+deliberately short, because almost nothing in that database is irreplaceable:
+the categories and platform settings are recreated by `BootstrapRunner` on
+startup, and the administrator is recreated from `ADMIN_EMAIL` /
+`ADMIN_PASSWORD`. The campus below is the only row somebody actually typed.
+
+| Field | Value |
+| --- | --- |
+| Name | University of Texas at Dallas |
+| Short name | UTD |
+| Slug | ut-dallas |
+| City / State | Richardson, TX |
+| Email domains | utdallas.edu |
+
+Re-add it under **Admin -> Universities -> Add**. Everything else on the live
+site — providers, bookings, reviews — is still empty, so there is nothing else
+to restore.
+
 ### Turning on real email
 
 1. Create an account with a sending provider — Resend, Postmark and SES all
