@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Put CampusConnect on the public internet from this machine.
 #
-#   ./go-live.sh
+#   ./scripts/go-live.sh
 #
 # Opens one Cloudflare tunnel and starts the app behind it, then prints the
 # address to share. One tunnel is enough now that the pages and the API come
@@ -13,10 +13,11 @@
 #   - it stops the moment this machine sleeps or the script is closed
 #   - the URL is random and changes every run
 #   - real traffic hits your machine
-# For always-on hosting, see DEPLOY.md.
+# For always-on hosting, see docs/DEPLOY.md.
 set -euo pipefail
 
-cd "$(dirname "$0")"
+# This script lives in scripts/, so the repository root is one level up.
+cd "$(dirname "$0")/.."
 
 export JAVA_HOME="${JAVA_HOME:-/c/Users/josep/tools/jdk-21}"
 export PATH="$JAVA_HOME/bin:/c/Users/josep/tools/maven/bin:$PATH"

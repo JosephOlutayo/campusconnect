@@ -2,6 +2,7 @@
 # production runs it. Useful for checking the production config against a real
 # Postgres before pushing it anywhere.
 #
+#   cd deploy
 #   cp .env.docker.example .env.docker   (then fill in the secret)
 #   docker compose --env-file .env.docker up --build
 #
@@ -24,7 +25,7 @@ services:
       retries: 10
 
   app:
-    build: ./api
+    build: ../api
     depends_on:
       db:
         condition: service_healthy

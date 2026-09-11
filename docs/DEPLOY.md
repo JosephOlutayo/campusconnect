@@ -57,10 +57,11 @@ Those three settings caused the first two failed deploys of this project.
 
 ## Try the production config locally first
 
-`docker-compose.yml` runs Postgres + the application exactly as production does.
+`deploy/docker-compose.yml` runs Postgres + the application exactly as production does.
 It is the cheapest way to catch a bad environment variable.
 
 ```bash
+cd deploy
 cp .env.docker.example .env.docker
 # fill in CAMPUSCONNECT_JWT_SECRET, DATABASE_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD
 docker compose --env-file .env.docker up --build
