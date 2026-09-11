@@ -9,6 +9,26 @@
   <h1 class="page-title" th:text="${provider.businessName}">Business</h1>
   <p class="page-sub" th:text="${provider.tagline}">Tagline</p>
 
+  <!--
+    A provider whose business is not ACTIVE is invisible: the public page 404s
+    for everyone but them, and search filters them out. Without this they would
+    set everything up and wait for bookings that can never arrive.
+  -->
+  <div class="form-notice" style="margin-top:0.9rem;background:var(--warning-soft);color:var(--warning)"
+       th:if="${provider.status.name() == 'PENDING'}">
+    <strong>Not visible yet.</strong>
+    Your business is waiting for approval, so it does not appear in search and
+    students cannot book you. Everything here still works — set your services
+    and opening hours now and you are ready the moment it is approved.
+  </div>
+
+  <div class="form-notice" style="margin-top:0.9rem;background:var(--danger-soft);color:var(--danger)"
+       th:if="${provider.status.name() == 'SUSPENDED'}">
+    <strong>Suspended.</strong>
+    Your business has been removed from search and cannot take new bookings.
+    Contact an administrator if you think this is a mistake.
+  </div>
+
   <div class="row" style="gap:0.5rem;margin-top:0.9rem;flex-wrap:wrap">
     <a class="btn btn-secondary btn-sm" th:href="@{/provider/bookings}">Bookings</a>
     <a class="btn btn-secondary btn-sm" th:href="@{/provider/services}">Services</a>
