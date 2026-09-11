@@ -56,12 +56,12 @@
         <span class="field-label">Email</span>
         <input class="input" type="email" name="email" required autocomplete="email"
                th:value="${email}"
-               th:placeholder="${emailVerificationEnabled} ? 'you@university.edu' : 'you@example.com'">
+               placeholder="you@example.com">
         <span class="hint"
               th:text="${emailVerificationEnabled}
-                       ? 'Use your campus email to get the verified student badge.'
-                       : 'Any email you can access — a personal one is fine.'">
-          Any email you can access.
+                       ? 'Any email you can access — Gmail is fine. A campus address also earns the verified student badge.'
+                       : 'Any email you can access — Gmail is fine. It does not have to be your school address.'">
+          Any email you can access — Gmail is fine.
         </span>
       </label>
 
