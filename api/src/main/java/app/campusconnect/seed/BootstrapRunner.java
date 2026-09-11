@@ -4,6 +4,7 @@ import app.campusconnect.domain.PlatformSetting;
 import app.campusconnect.domain.Role;
 import app.campusconnect.domain.User;
 import app.campusconnect.repository.CategoryRepository;
+import app.campusconnect.repository.UniversityRepository;
 import app.campusconnect.repository.PlatformSettingRepository;
 import app.campusconnect.repository.UserRepository;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class BootstrapRunner implements ApplicationRunner {
 
     private final UserRepository users;
     private final CategoryRepository categories;
+    private final UniversityRepository universities;
     private final PlatformSettingRepository settings;
     private final PasswordEncoder passwordEncoder;
     private final String adminEmail;
@@ -51,6 +53,7 @@ public class BootstrapRunner implements ApplicationRunner {
 
     public BootstrapRunner(UserRepository users,
                            CategoryRepository categories,
+                           UniversityRepository universities,
                            PlatformSettingRepository settings,
                            PasswordEncoder passwordEncoder,
                            @Value("${campusconnect.bootstrap.admin-email:}") String adminEmail,
@@ -59,6 +62,7 @@ public class BootstrapRunner implements ApplicationRunner {
                            @Value("${campusconnect.platform-fee-percent:10}") int defaultFeePercent) {
         this.users = users;
         this.categories = categories;
+        this.universities = universities;
         this.settings = settings;
         this.passwordEncoder = passwordEncoder;
         this.adminEmail = adminEmail == null ? "" : adminEmail.trim();
@@ -72,6 +76,7 @@ public class BootstrapRunner implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         ensureSettings();
         ensureCategories();
+        ensureCampuses();
         ensureAdmin();
     }
 
@@ -84,6 +89,22 @@ public class BootstrapRunner implements ApplicationRunner {
         }
         if (settings.findById(PlatformSetting.PROVIDER_AUTO_APPROVE).isEmpty()) {
             settings.save(new PlatformSetting(PlatformSetting.PROVIDER_AUTO_APPROVE, "true"));
+        }
+    }
+
+    /**
+     * Adds any campus from the catalogue that is missing.
+     *
+     * Deliberately not gated on "are there none yet" the way the categories are.
+     * An operator who has already set a campus up should still receive ones
+     * added to the catalogue later, and their own edits are safe because
+     * existing campuses are matched by slug and left untouched.
+     */
+    private void ensureCampuses() {
+        int added = CampusCatalog.addMissing(universities);
+        if (added > 0) {
+            log.info("Bootstrap: added {} campus(es) from the catalogue. "
+                    + "Edit, hide or extend them in the admin console.", added);
         }
     }
 
