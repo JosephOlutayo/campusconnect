@@ -291,3 +291,26 @@ h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
   background: var(--accent-soft);
   border-color: transparent;
 }
+
+/* --- touch targets -------------------------------------------------------- */
+
+/*
+  A browser's default checkbox is 13px square. On a phone that is a hard thing
+  to hit accurately, and these are not decorative: the ones in the opening-hours
+  editor decide whether a day can be booked at all, and the ones in onboarding
+  decide where a provider is willing to work.
+
+  The label wraps the input in every case, so the day name is tappable too —
+  this widens the target rather than being the only way to hit it.
+*/
+input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+/* Give a row of checkboxes a comfortable height to tap, not just a wide one. */
+label.row:has(input[type="checkbox"]) {
+  min-height: 2.5rem;
+}
