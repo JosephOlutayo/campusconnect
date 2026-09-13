@@ -67,6 +67,8 @@ final class CampusCatalog {
                     32.8412, -96.7845, "#354CA1", "smu.edu"},
             {"The University of Texas at Arlington", "UTA", "ut-arlington", "Arlington", "TX",
                     32.7317, -97.1148, "#0064B1", "uta.edu,mavs.uta.edu"},
+            {"The University of Texas at San Antonio", "UTSA", "ut-san-antonio", "San Antonio", "TX",
+                    29.5830, -98.6197, "#F15A22", "utsa.edu,my.utsa.edu"},
     };
 
     static int size() {
